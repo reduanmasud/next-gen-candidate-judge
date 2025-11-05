@@ -35,4 +35,12 @@ return [
         ],
     ],
 
+    'workspace' => [
+        'mode' => env('WORKSPACE_MODE', 'system'), // system|local
+        'base_path' => env('WORKSPACE_BASE_PATH', storage_path('app/workspaces')),
+        'terminal_protocol' => env('WORKSPACE_TERMINAL_PROTOCOL', 'http'),
+        'terminal_host' => env('WORKSPACE_TERMINAL_HOST'),
+        'terminal_path' => env('WORKSPACE_TERMINAL_PATH', '/'),
+    ],
+
 ];

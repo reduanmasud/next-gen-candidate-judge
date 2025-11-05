@@ -2,30 +2,30 @@
 
 namespace App\Scripts;
 
-class SetDockerComposeYamlScript extends Script
+class StartDockerComposeScript extends Script
 {
     public function __construct(
         protected string $workspacePath,
-        protected string $dockerComposeYaml,
+        protected string $projectName,
     ) {
         //
     }
 
     public function name(): string
     {
-        return 'Set Docker Compose Yaml Script';
+        return 'Start Docker Compose Script for ' . $this->projectName;
     }
 
     public function template(): string
     {
-        return 'scrips.set_docker_compose_yaml';
+        return 'scrips.start_docker_compose';
     }
 
     public function data(): array
     {
         return [
             'workspacePath' => $this->workspacePath,
-            'dockerComposeYaml' => $this->dockerComposeYaml,
+            'projectName' => $this->projectName,
         ];
     }
 }

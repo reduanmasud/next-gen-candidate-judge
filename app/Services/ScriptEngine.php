@@ -34,8 +34,29 @@ class ScriptEngine
             $process->run();
 
         } finally {
-            // @unlink($tmpFile);
+            @unlink($tmpFile);
         }
+
+        return [
+            'output' => $process->getOutput(),
+            'error_output' => $process->getErrorOutput(),
+            'exit_code' => $process->getExitCode(),
+            'successful' => $process->isSuccessful(),
+        ];
+    }
+
+    /**
+     * Execute a script by streaming it to bash via STDIN. Useful for SSH/here-doc heavy scripts.
+     */
+    public function executeViaStdin(Script $script, int $timeoutSeconds = 900): array
+    {
+        $script = view($script->template(), $script->data())->render();
+        $wrappedScript = $this->wrapper->wrap($script);
+
+        $process = Process::fromShellCommandline('bash -s');
+        $process->setTimeout($timeoutSeconds);
+        $process->setInput($wrappedScript);
+        $process->run();
 
         return [
             'output' => $process->getOutput(),

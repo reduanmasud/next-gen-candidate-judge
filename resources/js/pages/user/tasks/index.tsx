@@ -1,7 +1,9 @@
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
-import { Head } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
+import { useMemo, useState } from 'react';
 import { PlayIcon } from 'lucide-react';
+import { Spinner } from '@/components/ui/spinner';
 
 interface Task {
     id: number;
@@ -9,6 +11,7 @@ interface Task {
     description: string;
     score: number;
     is_started: boolean;
+    is_completed: boolean;
     attempt_id: number | null;
 }
 
@@ -17,9 +20,32 @@ interface UserTasksIndexProps {
 }
 
 export default function UserTasksIndex({ tasks }: UserTasksIndexProps) {
-    const handleStart = (taskId: number) => {
-        // We'll implement this later
-        alert(`Starting task ${taskId}`);
+    const [preparingTaskId, setPreparingTaskId] = useState<number | null>(null);
+
+    const preparingTask = useMemo(
+        () => tasks.find((task) => task.id === preparingTaskId) ?? null,
+        [preparingTaskId, tasks],
+    );
+
+    const handleStart = (task: Task) => {
+        if (preparingTaskId !== null) {
+            return;
+        }
+
+        if (task.is_started && task.attempt_id) {
+            router.visit(`/my-tasks/attempts/${task.attempt_id}`);
+            return;
+        }
+
+        router.post(
+            `/my-tasks/${task.id}/start`,
+            {},
+            {
+                onStart: () => setPreparingTaskId(task.id),
+                onError: () => setPreparingTaskId(null),
+                onCancel: () => setPreparingTaskId(null),
+            },
+        );
     };
 
     return (
@@ -58,10 +84,11 @@ export default function UserTasksIndex({ tasks }: UserTasksIndexProps) {
                                 <div className="pt-2">
                                     <Button
                                         className="w-full"
-                                        onClick={() => handleStart(task.id)}
+                                        onClick={() => handleStart(task)}
+                                        disabled={preparingTaskId !== null}
                                     >
                                         <PlayIcon className="mr-2 h-4 w-4" />
-                                        Start Task
+                                        {task.is_started ? 'Open Workspace' : 'Start Task'}
                                     </Button>
                                 </div>
                             </div>
@@ -83,6 +110,23 @@ export default function UserTasksIndex({ tasks }: UserTasksIndexProps) {
                     </div>
                 )}
             </div>
+
+            {preparingTask && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+                    <div className="flex w-full max-w-md flex-col items-center gap-4 rounded-lg border bg-card px-8 py-6 text-center shadow-lg">
+                        <Spinner className="h-8 w-8" />
+                        <div>
+                            <p className="text-lg font-semibold">
+                                Preparing your workspace…
+                            </p>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                                Setting up Docker environment for{' '}
+                                <span className="font-medium">{preparingTask.title}</span>. This may take a moment.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
         </AppLayout>
     );
 }
