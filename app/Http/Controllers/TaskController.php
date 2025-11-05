@@ -30,7 +30,14 @@ class TaskController extends Controller
      */
     public function create(): Response
     {
-        return Inertia::render('tasks/create');
+        $servers = \App\Models\Server::query()
+            ->where('status', 'provisioned')
+            ->orderBy('name')
+            ->get(['id','name','ip_address']);
+
+        return Inertia::render('tasks/create', [
+            'servers' => $servers,
+        ]);
     }
 
     /**
@@ -45,6 +52,7 @@ class TaskController extends Controller
             'docker_compose_yaml' => 'required|string',
             'score' => 'required|integer|min:0',
             'is_active' => 'required|boolean',
+            'server_id' => 'nullable|exists:servers,id',
         ]);
 
         $task = new Task($validated);

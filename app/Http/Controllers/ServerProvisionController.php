@@ -54,6 +54,8 @@ class ServerProvisionController extends Controller
         $server = new Server([
             'name' => $validated['name'],
             'ip_address' => $validated['ip_address'],
+            'ssh_username' => $validated['ssh_username'],
+            'ssh_password' => $validated['ssh_password'],
             'user_id' => auth()->user()->id,
             'status' => 'pending',
         ]);

@@ -10,6 +10,8 @@ class Server extends Model
     protected $fillable = [
         'name',
         'ip_address',
+        'ssh_username',
+        'ssh_password',
         'status',
         'provisioned_at',
         'notes',

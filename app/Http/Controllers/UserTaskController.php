@@ -51,6 +51,12 @@ class UserTaskController extends Controller
     {
         $user = $request->user();
 
+        // Load the server relationship if it exists
+        $task->loadMissing('server');
+
+        // Set the server on the workspace service
+        $this->workspace->setServer($task->server);
+
         $existingAttempt = UserTaskAttempt::query()
             ->where('user_id', $user->id)
             ->where('task_id', $task->id)

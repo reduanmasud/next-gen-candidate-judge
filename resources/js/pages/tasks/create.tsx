@@ -27,13 +27,14 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
-export default function CreateTask() {
+export default function CreateTask({ servers = [] as { id: number; name: string; ip_address: string }[] }) {
     const { data, setData, post, processing, errors } = useForm({
         title: '',
         description: '',
         docker_compose_yaml: '',
         score: 0,
         is_active: true,
+        server_id: '' as number | ''
     });
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -113,6 +114,26 @@ export default function CreateTask() {
                             </div>
 
                             <div className="space-y-6 lg:col-span-1">
+                                <div className="space-y-2">
+                                    <Label htmlFor="server_id">Target Server (optional)</Label>
+                                    <select
+                                        id="server_id"
+                                        className="w-full rounded-md border bg-background p-2 text-sm"
+                                        value={data.server_id as any}
+                                        onChange={(e) => setData('server_id', e.target.value ? Number(e.target.value) : '')}
+                                    >
+                                        <option value="">Local (default)</option>
+                                        {servers.map((s) => (
+                                            <option key={s.id} value={s.id}>
+                                                {s.name} ({s.ip_address})
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <p className="text-xs text-muted-foreground">
+                                        Choose a provisioned server to run this task on.
+                                    </p>
+                                    <InputError message={errors.server_id} />
+                                </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="score">Score</Label>
                                     <Input

@@ -2,12 +2,15 @@
 
 namespace App\Services;
 
+use App\Models\Server;
 use App\Models\Task;
 use App\Models\User;
 use App\Models\UserTaskAttempt;
 use App\Scripts\CreateUserScript;
 use App\Scripts\SetDockerComposeYamlScript;
 use App\Scripts\StartDockerComposeScript;
+use App\Scripts\RemoteSetDockerComposeYamlScript;
+use App\Scripts\RemoteStartDockerComposeScript;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
@@ -21,6 +24,11 @@ class WorkspaceService
         protected ScriptEngine $engine,
     ) {
         //
+    }
+
+    public function setServer(?Server $server): void
+    {
+        $this->engine->setServer($server);
     }
 
     public function start(Task $task, User $user): UserTaskAttempt
@@ -43,7 +51,41 @@ class WorkspaceService
         $workspacePath = $this->resolveWorkspacePath($mode, $basePath, $username);
 
         try {
-            if ($mode === 'system') {
+            if ($task->server) {
+                // Remote mode
+                $server = $task->server;
+                $sshUser = $server->ssh_username ?: 'root';
+                $sshPass = (string) ($server->ssh_password ?? '');
+
+                if ($sshPass === '') {
+                    throw new RuntimeException('Remote server SSH password is missing. Edit the server and set ssh_password.');
+                }
+
+                // Use a user-writable workspace path to avoid sudo
+                $workspacePath = $sshUser === 'root'
+                    ? '/opt/workspaces/' . $projectName
+                    : '/home/' . $sshUser . '/workspaces/' . $projectName;
+
+                $this->ensureSuccessful(
+                    $this->engine->executeViaStdin(new RemoteSetDockerComposeYamlScript(
+                        $server->ip_address,
+                        $sshUser,
+                        $sshPass,
+                        $workspacePath,
+                        $task->docker_compose_yaml,
+                    )),
+                    'write remote docker-compose.yaml'
+                );
+
+                $startResult = $this->engine->executeViaStdin(new RemoteStartDockerComposeScript(
+                    $server->ip_address,
+                    $sshUser,
+                    $sshPass,
+                    $workspacePath,
+                    $projectName,
+                ));
+                $this->ensureSuccessful($startResult, 'start remote docker compose');
+            } elseif ($mode === 'system') {
                 $password = $this->generatePassword();
 
                 $this->ensureSuccessful(
@@ -55,13 +97,15 @@ class WorkspaceService
                 File::ensureDirectoryExists($workspacePath . '/html');
             }
 
-            $this->ensureSuccessful(
-                $this->engine->execute(new SetDockerComposeYamlScript($workspacePath, $task->docker_compose_yaml)),
-                'write docker-compose.yaml'
-            );
+            if (! $task->server) {
+                $this->ensureSuccessful(
+                    $this->engine->execute(new SetDockerComposeYamlScript($workspacePath, $task->docker_compose_yaml)),
+                    'write docker-compose.yaml'
+                );
 
-            $startResult = $this->engine->execute(new StartDockerComposeScript($workspacePath, $projectName));
-            $this->ensureSuccessful($startResult, 'start docker compose');
+                $startResult = $this->engine->execute(new StartDockerComposeScript($workspacePath, $projectName));
+                $this->ensureSuccessful($startResult, 'start docker compose');
+            }
 
             $containers = $this->parseDockerComposeOutput($startResult['output']);
 

@@ -13,11 +13,17 @@ class Task extends Model
         'docker_compose_yaml',
         'score',
         'is_active',
+        'server_id',
     ];
 
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function server()
+    {
+        return $this->belongsTo(Server::class);
     }
     public function attempts(): HasMany
     {
