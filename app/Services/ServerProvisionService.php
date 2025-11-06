@@ -32,10 +32,13 @@ class ServerProvisionService
             new SetupTraefikForServerJob($server, $cloudflareApiToken),
         ])->onQueue('default')->dispatch();
 
-
-        $server->status = 'provisioned';
-        $server->save();
+        $server->notes = $this->appendToNotes(
+            $server->notes,
+            sprintf("[%s] Server provisioning job chain dispatched", now()->toDateTimeString())
+        );
         
+        
+
         $server->notes = $this->appendToNotes(
             $server->notes,
             sprintf("[%s] Server provisioning job chain dispatched", now()->toDateTimeString())

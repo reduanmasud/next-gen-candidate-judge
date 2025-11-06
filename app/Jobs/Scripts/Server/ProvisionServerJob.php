@@ -17,7 +17,7 @@ class ProvisionServerJob extends BaseScriptJob
         public string $sshUsername,
         public string $sshPassword,
     ) {
-        //
+        parent::__construct();
     }
 
     public function handle(ScriptEngine $engine): void

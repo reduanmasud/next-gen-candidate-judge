@@ -9,6 +9,7 @@ use App\Scripts\Script;
 use App\Scripts\ScriptDescriptor;
 use App\Services\ScriptEngine;
 use App\Traits\AppendsNotes;
+use Illuminate\Support\Facades\Log;
 
 trait HandlesScriptExecution
 {

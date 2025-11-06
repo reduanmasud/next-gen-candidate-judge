@@ -44,6 +44,10 @@ class SetupTraefikForServerJob extends BaseScriptJob
                 'server_id' => $this->server->id,
                 'job_run_id' => $jobRun->id,
             ]);
+
+            // Update server status
+            $server->status = 'provisioned';
+            $server->save();
         } catch (Throwable $e) {
             $jobRun->update([
                 'status' => 'failed',
