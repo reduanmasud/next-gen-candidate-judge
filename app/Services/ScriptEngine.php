@@ -9,8 +9,8 @@ use Symfony\Component\Process\Process;
 
 class ScriptEngine
 {
-
     private $key = 'your-secret-key';
+
     private $timeout = 1200;
 
     public function __construct(
@@ -43,8 +43,8 @@ class ScriptEngine
 
         $wrappedScript = $this->wrapper->wrap($rendered);
 
-    $tmpFile = tempnam(sys_get_temp_dir(), 'script_') . '.sh';
-    file_put_contents($tmpFile, $wrappedScript);
+        $tmpFile = tempnam(sys_get_temp_dir(), 'script_').'.sh';
+        file_put_contents($tmpFile, $wrappedScript);
         chmod($tmpFile, 0777);
 
         try {
@@ -74,7 +74,7 @@ class ScriptEngine
      */
     public function executeViaStdin(Script|ScriptDescriptor $script, int $timeoutSeconds = 900): array
     {
-        if (!$this->server) {
+        if (! $this->server) {
             throw new \RuntimeException('Server is not set. Call setServer() before executing remote scripts.');
         }
 
@@ -86,19 +86,19 @@ class ScriptEngine
 
         $wrappedScript = $this->wrapper->wrap($rendered);
 
-    $file_random_name = bin2hex(random_bytes(16));
+        $file_random_name = bin2hex(random_bytes(16));
 
         // Need generate script file and encrypt it
-    $scriptFile = sys_get_temp_dir() . '/' . $file_random_name . '.sh';
-    file_put_contents($scriptFile, $wrappedScript);
+        $scriptFile = sys_get_temp_dir().'/'.$file_random_name.'.sh';
+        file_put_contents($scriptFile, $wrappedScript);
         chmod($scriptFile, 0777);
-        $encryptedScriptFile = sys_get_temp_dir() . '/' . $file_random_name . '.enc';
+
+        $encryptedScriptFile = sys_get_temp_dir().'/'.$file_random_name.'.enc';
         $this->encryptFile($scriptFile, $encryptedScriptFile);
 
-        $this->scpUpload($this->server->ip_address, $this->server->ssh_username, $this->server->ssh_password, $encryptedScriptFile, '/tmp/' . $file_random_name . '.enc');
+        $this->scpUpload($this->server->ip_address, $this->server->ssh_username, $this->server->ssh_password, $encryptedScriptFile, '/tmp/'.$file_random_name.'.enc');
         @unlink($scriptFile);
         @unlink($encryptedScriptFile);
-
 
         $cmd = <<<BASH
         cd /tmp &&\
@@ -121,17 +121,16 @@ class ScriptEngine
         $process = Process::fromShellCommandline($cmd);
         $process->run();
 
-        if (!$process->isSuccessful()) {
-            throw new \RuntimeException("Encryption failed: " . $process->getErrorOutput());
+        if (! $process->isSuccessful()) {
+            throw new \RuntimeException('Encryption failed: '.$process->getErrorOutput());
         }
-        return;
-    }
-    
 
-    function sshRun(string $host, string $user, string $password, string $remoteCommand): array
+    }
+
+    public function sshRun(string $host, string $user, string $password, string $remoteCommand): array
     {
         $cmd = sprintf(
-            "sshpass -p %s ssh -o StrictHostKeyChecking=no %s@%s %s",
+            'sshpass -p %s ssh -o StrictHostKeyChecking=no %s@%s %s',
             escapeshellarg($password),
             escapeshellarg($user),
             escapeshellarg($host),
@@ -142,8 +141,8 @@ class ScriptEngine
         $process->setTimeout($this->timeout);
         $process->run();
 
-        if (!$process->isSuccessful()) {
-            throw new \RuntimeException("SSH command failed: " . $process->getErrorOutput());
+        if (! $process->isSuccessful()) {
+            throw new \RuntimeException('SSH command failed: '.$process->getErrorOutput());
         }
 
         return [
@@ -155,14 +154,9 @@ class ScriptEngine
     }
 
     private function scpUpload(string $host, string $user, string $password, string $localFile, string $remoteFile): array
-    {        
-
-        // $test = new Process(['whoami']);
-        // $test->run();
-
-        // dd($test->getOutput());
+    {
         $cmd = sprintf(
-            "sshpass -p %s scp -o StrictHostKeyChecking=no %s %s@%s:%s",
+            'sshpass -p %s scp -o StrictHostKeyChecking=no %s %s@%s:%s',
             escapeshellarg($password),
             escapeshellarg($localFile),
             escapeshellarg($user),
@@ -174,8 +168,8 @@ class ScriptEngine
         $process->setTimeout($this->timeout);
         $process->run();
 
-        if (!$process->isSuccessful()) {
-            throw new \RuntimeException("SCP upload failed: " . $process->getErrorOutput());
+        if (! $process->isSuccessful()) {
+            throw new \RuntimeException('SCP upload failed: '.$process->getErrorOutput());
         }
 
         return [
@@ -184,6 +178,6 @@ class ScriptEngine
             'exit_code' => $process->getExitCode(),
             'successful' => $process->isSuccessful(),
         ];
-        
+
     }
 }

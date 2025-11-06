@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Jobs\Scripts\Workspace\CreateUserJob;
 use App\Jobs\Scripts\Workspace\FinalizeWorkspaceJob;
+use App\Jobs\Scripts\Workspace\SetupCaddyServerJob;
 use App\Jobs\Scripts\Workspace\SetDockerComposeJob;
 use App\Jobs\Scripts\Workspace\StartDockerComposeJob;
 use App\Models\Task;
@@ -86,8 +87,9 @@ class WorkspaceService
             new CreateUserJob($attempt, $server, $username, $password),
             new SetDockerComposeJob($attempt, $server, $username, $workspacePath, $task->docker_compose_yaml),
             new StartDockerComposeJob($attempt, $server, $workspacePath),
+            new SetupCaddyServerJob($attempt, $server),
             new FinalizeWorkspaceJob($attempt),
-        ])->onQueue('workspace')->dispatch();
+        ])->onQueue('default')->dispatch();
 
         Log::info('Workspace provisioning job chain dispatched', [
             'task_id' => $task->id,

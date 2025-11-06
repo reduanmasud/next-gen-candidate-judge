@@ -27,11 +27,20 @@ trait HandlesScriptExecution
             $path = $script->template();
         }
 
+        Log::info('Creating script job run', [
+            'script_name' => $name,
+            'script_path' => $path,
+            'user_id' => $this->authUser->id,
+            'server_id' => $server?->id,
+            'task_id' => $attempt?->task_id,
+            'attempt_id' => $attempt?->id,
+        ]);
+
         return ScriptJobRun::create([
             'script_name' => $name,
             'script_path' => $path,
             'status' => 'running',
-            'user_id' => $attempt?->user_id ?? auth()->id(),
+            'user_id' => $this->authUser->id,
             'server_id' => $server?->id,
             'task_id' => $attempt?->task_id,
             'attempt_id' => $attempt?->id,

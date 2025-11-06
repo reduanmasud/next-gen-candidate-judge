@@ -2,12 +2,7 @@
 
 namespace App\Jobs\Scripts\Workspace;
 
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Bus\Dispatchable;
-use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Queue\SerializesModels;
-use App\Jobs\Scripts\Concerns\HandlesScriptExecution;
+use App\Jobs\Scripts\BaseScriptJob;
 use App\Models\UserTaskAttempt;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -15,20 +10,16 @@ use Throwable;
 /**
  * Base class for workspace-related jobs.
  *
- * Provides common defaults and a shared failed() implementation to reduce duplication.
+ * Extends BaseScriptJob and adds workspace-specific failed() handling
+ * that updates the associated UserTaskAttempt record.
  */
-abstract class BaseWorkspaceJob implements ShouldQueue
+abstract class BaseWorkspaceJob extends BaseScriptJob
 {
-    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
-    use HandlesScriptExecution;
-
-    // sensible default for workspace jobs; child classes may override
-    public $timeout = 900;
-    public $tries = 1;
-
     /**
      * Default failed handler for workspace jobs.
-     * Updates the associated attempt (if present) and logs the error.
+     *
+     * Updates the associated attempt (if present) and logs the error,
+     * then calls parent failed() to handle ScriptJobRun updates.
      */
     public function failed(Throwable $exception): void
     {
@@ -50,9 +41,7 @@ abstract class BaseWorkspaceJob implements ShouldQueue
             ]);
         }
 
-        Log::error('Workspace job failed', [
-            'exception' => $exception->getMessage(),
-            'job_class' => static::class,
-        ]);
+        // Call parent to handle ScriptJobRun updates and logging
+        parent::failed($exception);
     }
 }

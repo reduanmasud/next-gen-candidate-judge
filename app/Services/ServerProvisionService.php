@@ -2,12 +2,13 @@
 
 namespace App\Services;
 
+use App\Jobs\Scripts\Server\ProvisionServerJob;
+use App\Jobs\Scripts\Server\SetupTraefikForServerJob;
 use App\Models\Server;
-use App\Scripts\ScriptDescriptor;
-use Illuminate\Support\Facades\Log;
 use RuntimeException;
-use Throwable;
 use App\Traits\AppendsNotes;
+use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Log;
 
 class ServerProvisionService
 {
@@ -23,53 +24,30 @@ class ServerProvisionService
         $server->status = 'provisioning';
         $server->save();
 
-        try {
-            $script = ScriptDescriptor::make('scrips.provision_server', [
-                'ipAddress' => $server->ip_address,
-                'sshUser' => $sshUsername,
-                'sshPassword' => $sshPassword,
-            ], 'Provision Server Script for ' . $server->ip_address);
+        $cloudflareApiToken = env('CLOUDFLARE_API_TOKEN');
 
-            $result = $this->engine->executeViaStdin($script);
+        // Dispatch job chain
+        Bus::chain([
+            new ProvisionServerJob($server, $sshUsername, $sshPassword),
+            new SetupTraefikForServerJob($server, $cloudflareApiToken),
+        ])->onQueue('default')->dispatch();
 
-            $this->ensureSuccessful($result, 'provision server');
 
-            $server->status = 'provisioned';
-            $server->provisioned_at = now();
-            $server->notes = $this->appendToNotes(
-                $server->notes,
-                sprintf(
-                    "[%s] Provisioning completed.\nEXIT CODE: %s\nSTDOUT:\n%s\nSTDERR:\n%s\n",
-                    now()->toDateTimeString(),
-                    (string)($result['exit_code'] ?? '0'),
-                    trim((string)($result['output'] ?? '')),
-                    trim((string)($result['error_output'] ?? '')),
-                )
-            );
-            $server->save();
+        $server->status = 'provisioned';
+        $server->save();
+        
+        $server->notes = $this->appendToNotes(
+            $server->notes,
+            sprintf("[%s] Server provisioning job chain dispatched", now()->toDateTimeString())
+        );
 
-            Log::info('Server provisioned successfully', [
-                'server_id' => $server->id,
-                'ip_address' => $server->ip_address,
-            ]);
-        } catch (Throwable $exception) {
-            // Try to capture last process output if available
-            $errorSummary = $exception->getMessage();
-            $server->status = 'failed';
-            $server->notes = $this->appendToNotes(
-                $server->notes,
-                sprintf("[%s] Provisioning failed: %s\n", now()->toDateTimeString(), $errorSummary)
-            );
-            $server->save();
+        Log::info('Server provisioning job chain dispatched', [
+            'server_id' => $server->id,
+            'ip_address' => $server->ip_address,
+        ]);
 
-            Log::error('Server provisioning failed', [
-                'server_id' => $server->id,
-                'ip_address' => $server->ip_address,
-                'exception' => $exception->getMessage(),
-            ]);
 
-            throw $exception;
-        }
+
     }
 
     protected function ensureSuccessful(array $result, string $context): void

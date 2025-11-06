@@ -87,6 +87,25 @@ export default function UserTaskWorkspace({ task, attempt, workspace }: UserTask
             <Head title={`${task.title} · Workspace`} />
 
             <div className="flex h-full flex-1 flex-col gap-4 overflow-hidden p-4">
+
+                {attempt.status === 'pending' ? (
+                    
+                    <div className="flex w-full max-w-md flex-col items-center gap-4 rounded-lg border bg-card px-8 py-6 text-center shadow-lg">
+                        <Spinner className="h-8 w-8" />
+                        <div>
+                            <p className="text-lg font-semibold">
+                                Preparing your workspace…
+                            </p>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                                Setting up Docker environment for{' '}
+                                <span className="font-medium">{task.title}</span>. This may take a moment.
+                            </p>
+                        </div>
+                    </div>
+                
+                ) : (
+
+                <>
                 <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
                     <div>
                         <h1 className="text-2xl font-semibold">{task.title}</h1>
@@ -101,9 +120,9 @@ export default function UserTaskWorkspace({ task, attempt, workspace }: UserTask
                         <Button
                             variant="default"
                             onClick={handleRestart}
-                            disabled={isRestarting}
+                            disabled={isRestarting || attempt.status === 'pending'}
                         >
-                            {isRestarting ? (
+                            {isRestarting || attempt.status === 'pending' ? (
                                 <>
                                     <Spinner className="mr-2 h-4 w-4" />
                                     Restarting...
@@ -241,6 +260,10 @@ export default function UserTaskWorkspace({ task, attempt, workspace }: UserTask
                     </Card> 
 
                 </div>
+                </>
+                )}
+
+
             </div>
         </AppLayout>
     );

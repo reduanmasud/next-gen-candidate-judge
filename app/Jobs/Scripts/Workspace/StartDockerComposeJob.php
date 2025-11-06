@@ -7,24 +7,12 @@ use App\Models\Server;
 use App\Models\UserTaskAttempt;
 use App\Scripts\ScriptDescriptor;
 use App\Services\ScriptEngine;
-use App\Jobs\Scripts\Concerns\HandlesScriptExecution;
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Bus\Dispatchable;
-use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
-class StartDockerComposeJob implements ShouldQueue
+class StartDockerComposeJob extends BaseWorkspaceJob
 {
-    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
-    use HandlesScriptExecution;
-
-    public $timeout = 900; // 15 minutes
-    public $tries = 1;
-
     public function __construct(
         public UserTaskAttempt $attempt,
         public Server $server,
@@ -170,6 +158,6 @@ class StartDockerComposeJob implements ShouldQueue
         return null;
     }
 
-        // Uses BaseWorkspaceJob::failed() and HandlesScriptExecution::appendToNotes()
+    // Uses BaseWorkspaceJob::failed() for error handling
 }
 

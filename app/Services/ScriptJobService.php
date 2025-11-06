@@ -19,7 +19,7 @@ class ScriptJobService
         // Create a minimal job run first, then update with script-specific values so we support both
         // Script and ScriptDescriptor without calling methods that may not exist on the descriptor.
         $jobRun = ScriptJobRun::create([
-            'user_id' => auth()->id(),
+            'user_id' => $server?->user_id ?? auth()->id(),
             'server_id' => $server?->id,
             'task_id' => $task?->id,
             'status' => 'pending',

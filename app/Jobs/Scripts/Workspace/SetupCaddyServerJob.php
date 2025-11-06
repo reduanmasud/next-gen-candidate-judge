@@ -7,24 +7,14 @@ use App\Models\Server;
 use App\Models\UserTaskAttempt;
 use App\Scripts\ScriptDescriptor;
 use App\Services\ScriptEngine;
-use App\Jobs\Scripts\Concerns\HandlesScriptExecution;
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Bus\Dispatchable;
-use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class SetupCaddyServerJob extends BaseWorkspaceJob
 {
-    use HandlesScriptExecution;
-    public $timeout = 900; // 15 minutes
-    public $tries = 1;
     public function __construct(
         public UserTaskAttempt $attempt,
         public Server $server,
-        public string $username,
     ) {
         //
     }
@@ -33,13 +23,13 @@ class SetupCaddyServerJob extends BaseWorkspaceJob
         $script = ScriptDescriptor::make(
             'scripts.setup_caddy_server_for_user',
             [
-                'username' => $this->username,
+                'container_name' => $this->attempt->getMeta('primary_container_name'),
             ],
             'Setup Caddy Server for User'
         );
 
         $jobRun = $this->createScriptJobRun($script, $this->attempt, $this->server, [
-            'username' => $this->username,
+            'container_name' => $this->attempt->getMeta('primary_container_name'),
         ]);
 
         try {
@@ -78,7 +68,7 @@ class SetupCaddyServerJob extends BaseWorkspaceJob
 
             Log::error('Setup Caddy server job failed', [
                 'attempt_id' => $this->attempt->id,
-                'username' => $this->username,
+                'container_name' => $this->attempt->getMeta('primary_container_name'),
                 'error' => $e->getMessage(),
             ]);
 
@@ -86,6 +76,6 @@ class SetupCaddyServerJob extends BaseWorkspaceJob
         }
     }
 
-    // Uses BaseWorkspaceJob::failed() and HandlesScriptExecution::appendToNotes()
+    // Uses BaseWorkspaceJob::failed() for error handling
 }
 

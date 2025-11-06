@@ -32,7 +32,7 @@ return new class extends Migration
             $table->timestamp('cancelled_at')->nullable();
             $table->timestamp('timed_out_at')->nullable();
 
-            $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
+            $table->foreignId('user_id')->nullable()->constrained('users')->onDelete('cascade');
             $table->foreignId('server_id')->nullable()->constrained('servers')->onDelete('cascade');
             $table->foreignId('task_id')->nullable()->constrained('tasks')->onDelete('cascade');
             $table->foreignId('attempt_id')->nullable()->constrained('user_task_attempts')->onDelete('cascade');
