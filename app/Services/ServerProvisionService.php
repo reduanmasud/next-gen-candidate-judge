@@ -3,13 +3,15 @@
 namespace App\Services;
 
 use App\Models\Server;
-use App\Scripts\ProvisionServerScript;
+use App\Scripts\ScriptDescriptor;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
 use Throwable;
+use App\Traits\AppendsNotes;
 
 class ServerProvisionService
 {
+    use AppendsNotes;
     public function __construct(
         protected ScriptEngine $engine,
     ) {
@@ -22,7 +24,13 @@ class ServerProvisionService
         $server->save();
 
         try {
-            $result = $this->engine->executeViaStdin(new ProvisionServerScript($server->ip_address, $sshUsername, $sshPassword));
+            $script = ScriptDescriptor::make('scrips.provision_server', [
+                'ipAddress' => $server->ip_address,
+                'sshUser' => $sshUsername,
+                'sshPassword' => $sshPassword,
+            ], 'Provision Server Script for ' . $server->ip_address);
+
+            $result = $this->engine->executeViaStdin($script);
 
             $this->ensureSuccessful($result, 'provision server');
 
@@ -76,11 +84,6 @@ class ServerProvisionService
         throw new RuntimeException(sprintf('Failed to %s: %s', $context, $message));
     }
 
-    protected function appendToNotes(?string $existing, string $message): string
-    {
-        $existing = $existing ? trim($existing) . "\n" : '';
-
-        return $existing . $message;
-    }
+    // appendToNotes is provided by AppendsNotes trait
 }
 

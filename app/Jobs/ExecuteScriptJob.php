@@ -8,6 +8,7 @@ use App\Models\ScriptJobRun;
 use App\Models\Task;
 use App\Models\Server;
 use App\Scripts\Script;
+use App\Scripts\ScriptDescriptor;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -29,7 +30,7 @@ class ExecuteScriptJob implements ShouldQueue
      */
     public function __construct(
         public ScriptJobRun $jobRun,
-        public Script $script,
+        public Script|ScriptDescriptor $script,
         public ?Task $task = null,
         public ?Server $server = null,
     ) {
@@ -39,7 +40,7 @@ class ExecuteScriptJob implements ShouldQueue
     public function handle(ScriptEngine $engin): void
     {
         Log::info('Executing script', [
-            'script' => $this->script->name(),
+            'script' => $this->script instanceof Script ? $this->script->name() : $this->script->name,
             'task' => $this->task?->id,
         ]);
 
@@ -67,7 +68,7 @@ class ExecuteScriptJob implements ShouldQueue
             ]);
 
             Log::info('Script completed', [
-                'script' => $this->script->name(),
+                'script' => $this->script instanceof Script ? $this->script->name() : $this->script->name,
                 'task' => $this->task?->id,
                 'exit_code' => $result['exit_code'],
             ]);
@@ -80,7 +81,7 @@ class ExecuteScriptJob implements ShouldQueue
             ]);
 
             Log::error('Script failed', [
-                'script' => $this->script->name(),
+                'script' => $this->script instanceof Script ? $this->script->name() : $this->script->name,
                 'task' => $this->task?->id,
                 'exception' => $e->getMessage(),
             ]);

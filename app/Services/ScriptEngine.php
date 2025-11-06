@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Server;
 use App\Scripts\Script;
+use App\Scripts\ScriptDescriptor;
 use Symfony\Component\Process\Process;
 
 class ScriptEngine
@@ -28,15 +29,22 @@ class ScriptEngine
     /**
      * Execute a script and return the output.
      */
-    public function execute(Script $script): array
+    /**
+     * Execute a script. Accepts either an App\Scripts\Script instance or a ScriptDescriptor.
+     */
+    public function execute(Script|ScriptDescriptor $script): array
     {
 
-        $script = view($script->template(), $script->data())->render();
+        if ($script instanceof ScriptDescriptor) {
+            $rendered = view($script->template, $script->data)->render();
+        } else {
+            $rendered = view($script->template(), $script->data())->render();
+        }
 
-        $wrappedScript = $this->wrapper->wrap($script);
+        $wrappedScript = $this->wrapper->wrap($rendered);
 
-        $tmpFile = tempnam(sys_get_temp_dir(), 'script_') . '.sh';
-        file_put_contents($tmpFile, $wrappedScript);
+    $tmpFile = tempnam(sys_get_temp_dir(), 'script_') . '.sh';
+    file_put_contents($tmpFile, $wrappedScript);
         chmod($tmpFile, 0777);
 
         try {
@@ -61,20 +69,28 @@ class ScriptEngine
     /**
      * Execute a script by streaming it to bash via STDIN. Useful for SSH/here-doc heavy scripts.
      */
-    public function executeViaStdin(Script $script, int $timeoutSeconds = 900): array
+    /**
+     * Execute a script by streaming it to bash via STDIN. Accepts Script or ScriptDescriptor.
+     */
+    public function executeViaStdin(Script|ScriptDescriptor $script, int $timeoutSeconds = 900): array
     {
         if (!$this->server) {
             throw new \RuntimeException('Server is not set. Call setServer() before executing remote scripts.');
         }
 
-        $script = view($script->template(), $script->data())->render();
-        $wrappedScript = $this->wrapper->wrap($script);
+        if ($script instanceof ScriptDescriptor) {
+            $rendered = view($script->template, $script->data)->render();
+        } else {
+            $rendered = view($script->template(), $script->data())->render();
+        }
 
-        $file_random_name = bin2hex(random_bytes(16));
+        $wrappedScript = $this->wrapper->wrap($rendered);
+
+    $file_random_name = bin2hex(random_bytes(16));
 
         // Need generate script file and encrypt it
-        $scriptFile = sys_get_temp_dir() . '/' . $file_random_name . '.sh';
-        file_put_contents($scriptFile, $wrappedScript);
+    $scriptFile = sys_get_temp_dir() . '/' . $file_random_name . '.sh';
+    file_put_contents($scriptFile, $wrappedScript);
         chmod($scriptFile, 0777);
         $encryptedScriptFile = sys_get_temp_dir() . '/' . $file_random_name . '.enc';
         $this->encryptFile($scriptFile, $encryptedScriptFile);

@@ -31,6 +31,8 @@ services:
             - rabbitmq
             - soketi
             - meilisearch
+        
+
     mariadb:
         image: 'mariadb:11'
         ports:

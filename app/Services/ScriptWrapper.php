@@ -12,6 +12,7 @@ set -euo pipefail
 
 {$script}
 
-BASH_SCRIPT_EOT;
+BASH_SCRIPT_EOT
+
 }
 }

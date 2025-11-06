@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Jobs\Workspace;
+namespace App\Jobs\Scripts\Workspace;
 
 use App\Models\UserTaskAttempt;
 use Illuminate\Bus\Queueable;
@@ -10,10 +10,12 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Throwable;
+use App\Traits\AppendsNotes;
 
 class FinalizeWorkspaceJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    use AppendsNotes;
 
     public $timeout = 60;
     public $tries = 1;
@@ -63,10 +65,5 @@ class FinalizeWorkspaceJob implements ShouldQueue
         ]);
     }
 
-    protected function appendToNotes(?string $existing, string $message): string
-    {
-        $existing = $existing ? trim($existing) . "\n" : '';
-        return $existing . $message;
-    }
 }
 

@@ -2,10 +2,10 @@
 
 namespace App\Services;
 
-use App\Jobs\Workspace\CreateUserJob;
-use App\Jobs\Workspace\FinalizeWorkspaceJob;
-use App\Jobs\Workspace\SetDockerComposeJob;
-use App\Jobs\Workspace\StartDockerComposeJob;
+use App\Jobs\Scripts\Workspace\CreateUserJob;
+use App\Jobs\Scripts\Workspace\FinalizeWorkspaceJob;
+use App\Jobs\Scripts\Workspace\SetDockerComposeJob;
+use App\Jobs\Scripts\Workspace\StartDockerComposeJob;
 use App\Models\Task;
 use App\Models\User;
 use App\Models\UserTaskAttempt;
@@ -13,9 +13,11 @@ use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use RuntimeException;
+use App\Traits\AppendsNotes;
 
 class WorkspaceService
 {
+    use AppendsNotes;
     // No longer need ScriptEngine dependency since jobs handle execution
     public function __construct()
     {
@@ -104,10 +106,5 @@ class WorkspaceService
         return Str::random(16);
     }
 
-    protected function appendToNotes(?string $existing, string $message): string
-    {
-        $existing = $existing ? trim($existing)."\n" : '';
-
-        return $existing.$message;
-    }
+    // appendToNotes provided by AppendsNotes trait
 }

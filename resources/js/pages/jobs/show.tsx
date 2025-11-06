@@ -64,7 +64,7 @@ export default function JobShow({ jobRun: initialJobRun }: Props) {
         <AppLayout>
             <Head title={`Job: ${jobRun.script_name}`} />
             
-            <div className="space-y-6">
+            <div className="flex h-full flex-1 flex-col gap-6 overflow-x-auto rounded-xl p-6">
                 <div className="flex justify-between items-center">
                     <h1 className="text-3xl font-bold">{jobRun.script_name}</h1>
                     <Badge

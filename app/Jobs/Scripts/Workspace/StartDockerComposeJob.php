@@ -1,12 +1,13 @@
 <?php
 
-namespace App\Jobs\Workspace;
+namespace App\Jobs\Scripts\Workspace;
 
 use App\Models\ScriptJobRun;
 use App\Models\Server;
 use App\Models\UserTaskAttempt;
-use App\Scripts\StartDockerComposeScript;
+use App\Scripts\ScriptDescriptor;
 use App\Services\ScriptEngine;
+use App\Jobs\Scripts\Concerns\HandlesScriptExecution;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -19,6 +20,7 @@ use Throwable;
 class StartDockerComposeJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    use HandlesScriptExecution;
 
     public $timeout = 900; // 15 minutes
     public $tries = 1;
@@ -33,44 +35,20 @@ class StartDockerComposeJob implements ShouldQueue
 
     public function handle(ScriptEngine $engine): void
     {
-        // Create job run record
-        $jobRun = ScriptJobRun::create([
-            'script_name' => 'Start Docker Compose',
-            'script_path' => 'scrips.start_docker_compose',
-            'status' => 'running',
-            'user_id' => $this->attempt->user_id,
-            'server_id' => $this->server->id,
-            'task_id' => $this->attempt->task_id,
-            'attempt_id' => $this->attempt->id,
-            'started_at' => now(),
-            'metadata' => [
-                'workspace_path' => $this->workspacePath,
+        $script = ScriptDescriptor::make(
+            'scrips.start_docker_compose',
+            [
+                'workspacePath' => $this->workspacePath,
             ],
+            'Start Docker Compose Script'
+        );
+
+        $jobRun = $this->createScriptJobRun($script, $this->attempt, $this->server, [
+            'workspace_path' => $this->workspacePath,
         ]);
 
         try {
-            // Set server for script execution
-            $engine->setServer($this->server);
-
-            // Create the script
-            $script = new StartDockerComposeScript($this->workspacePath);
-
-            // Store script content
-            $jobRun->update([
-                'script_content' => view($script->template(), $script->data())->render(),
-            ]);
-
-            // Execute the script
-            $result = $engine->executeViaStdin($script);
-
-            // Update job run with results
-            $jobRun->update([
-                'output' => $result['output'] ?? '',
-                'error_output' => $result['error_output'] ?? '',
-                'exit_code' => $result['exit_code'] ?? 0,
-                'status' => $result['successful'] ? 'completed' : 'failed',
-                'completed_at' => now(),
-            ]);
+            $result = $this->executeScriptAndRecord($script, $engine, $jobRun, $this->attempt, $this->server);
 
             // Parse docker compose output to get container info
             $containers = $this->parseDockerComposeOutput($result['output'] ?? '');
@@ -86,9 +64,8 @@ class StartDockerComposeJob implements ShouldQueue
                 'started_at' => now(),
             ]);
 
-            // Update attempt notes
-            $this->attempt->notes = $this->appendToNotes(
-                $this->attempt->notes,
+            $this->appendAttemptNotes(
+                $this->attempt,
                 sprintf(
                     "[%s] Started docker compose. Container: %s, Port: %s",
                     now()->toDateTimeString(),
@@ -96,13 +73,9 @@ class StartDockerComposeJob implements ShouldQueue
                     $publishedPort ?? 'N/A'
                 )
             );
-            $this->attempt->save();
 
-            // If script failed, throw exception to stop the chain
             if (!$result['successful']) {
-                throw new \RuntimeException(
-                    'Failed to start docker compose: ' . ($result['error_output'] ?? $result['output'] ?? 'Unknown error')
-                );
+                throw new \RuntimeException('Failed to start docker compose: ' . ($result['error_output'] ?? $result['output'] ?? 'Unknown error'));
             }
 
             Log::info('Docker compose started successfully', [
@@ -139,17 +112,6 @@ class StartDockerComposeJob implements ShouldQueue
         }
     }
 
-    public function failed(Throwable $exception): void
-    {
-        $this->attempt->update([
-            'status' => 'failed',
-            'completed_at' => now(),
-            'notes' => $this->appendToNotes(
-                $this->attempt->notes,
-                sprintf("[%s] Job failed: %s", now()->toDateTimeString(), $exception->getMessage())
-            ),
-        ]);
-    }
 
     protected function parseDockerComposeOutput(string $output): array
     {
@@ -194,10 +156,6 @@ class StartDockerComposeJob implements ShouldQueue
         return null;
     }
 
-    protected function appendToNotes(?string $existing, string $message): string
-    {
-        $existing = $existing ? trim($existing) . "\n" : '';
-        return $existing . $message;
-    }
+        // Uses BaseWorkspaceJob::failed() and HandlesScriptExecution::appendToNotes()
 }
 

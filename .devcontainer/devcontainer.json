@@ -23,7 +23,9 @@
 	"runArgs": [
     "--privileged" // needed to run the daemon
   ],
-	"postCreateCommand": "chown -R 1000:1000 /var/www/html 2>/dev/null || true"
+	// Install a few common utilities (sshpass, openssh-client which provides scp, curl, wget, git, unzip, jq)
+	// Run as non-interactive and leave permissions as before. This runs inside the created container.
+	"postCreateCommand": "export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -y --no-install-recommends sshpass openssh-client curl wget git unzip jq ca-certificates gnupg && apt-get clean && rm -rf /var/lib/apt/lists/* 2>/dev/null || true && chown -R 1000:1000 /var/www/html 2>/dev/null || true"
 	// "forwardPorts": [],
 	// "runServices": [],
 	// "shutdownAction": "none",
