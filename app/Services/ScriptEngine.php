@@ -105,7 +105,7 @@ class ScriptEngine
         openssl enc -d -aes-256-cbc -pbkdf2 -iter 100 -in {$file_random_name}.enc -out {$file_random_name}.sh -k {$this->key} &&\
         chmod +x {$file_random_name}.sh &&\
         ./{$file_random_name}.sh &&\
-        rm -f {$file_random_name}.sh &&\ 
+        rm -f {$file_random_name}.sh &&\
         rm -f {$file_random_name}.enc
         BASH;
 
