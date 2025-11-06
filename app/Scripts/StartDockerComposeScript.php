@@ -6,14 +6,13 @@ class StartDockerComposeScript extends Script
 {
     public function __construct(
         protected string $workspacePath,
-        protected string $projectName,
     ) {
         //
     }
 
     public function name(): string
     {
-        return 'Start Docker Compose Script for ' . $this->projectName;
+        return 'Start Docker Compose Script';
     }
 
     public function template(): string
@@ -25,7 +24,6 @@ class StartDockerComposeScript extends Script
     {
         return [
             'workspacePath' => $this->workspacePath,
-            'projectName' => $this->projectName,
         ];
     }
 }

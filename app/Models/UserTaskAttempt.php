@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class UserTaskAttempt extends Model
 {
@@ -33,5 +34,9 @@ class UserTaskAttempt extends Model
     {
         return $this->belongsTo(Task::class);
     }
-    
+
+    public function jobRuns(): HasMany
+    {
+        return $this->hasMany(ScriptJobRun::class, 'attempt_id');
+    }
 }

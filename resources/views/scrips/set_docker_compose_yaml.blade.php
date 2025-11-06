@@ -1,5 +1,7 @@
-mkdir -p '{{ $workspacePath }}'
+mkdir -p '{!!  $workspacePath !!}'
 
-cat << 'EOF' > '{{ $workspacePath }}/docker-compose.yaml'
+echo "Writing docker-compose.yaml to {{ $workspacePath }}/docker-compose.yaml"
+
+cat << 'EOF' > '{!! $workspacePath !!}/docker-compose.yaml'
 {!! $dockerComposeYaml !!}
 EOF

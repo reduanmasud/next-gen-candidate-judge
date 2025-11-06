@@ -1,7 +1,5 @@
 cd '{{ $workspacePath }}'
 
-export COMPOSE_PROJECT_NAME="{{ $projectName }}"
-
 # Stop any existing containers for this project without failing the script
 if [ -f "./docker-compose.yaml" ] && docker compose ps >/dev/null 2>&1; then
     docker compose down --remove-orphans || true

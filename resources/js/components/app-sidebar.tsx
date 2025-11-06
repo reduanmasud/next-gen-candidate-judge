@@ -35,7 +35,12 @@ const mainNavItems: NavItem[] = [
         title: 'Servers',
         href: '/servers',
         icon: Server,
-    }
+    },
+    {
+        title: 'Jobs',
+        href: '/jobs',
+        icon: Clipboard,
+    },
 ];
 
 const footerNavItems: NavItem[] = [

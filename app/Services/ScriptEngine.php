@@ -10,6 +10,7 @@ class ScriptEngine
 {
 
     private $key = 'your-secret-key';
+    private $timeout = 1200;
 
     public function __construct(
         protected ScriptWrapper $wrapper,
@@ -41,7 +42,7 @@ class ScriptEngine
         try {
 
             $process = new Process(['bash', $tmpFile]);
-            $process->setTimeout(300);
+            $process->setTimeout($this->timeout);
             $process->run();
 
         } finally {
@@ -49,6 +50,7 @@ class ScriptEngine
         }
 
         return [
+            'script' => $wrappedScript,
             'output' => $process->getOutput(),
             'error_output' => $process->getErrorOutput(),
             'exit_code' => $process->getExitCode(),
@@ -78,23 +80,28 @@ class ScriptEngine
         $this->encryptFile($scriptFile, $encryptedScriptFile);
 
         $this->scpUpload($this->server->ip_address, $this->server->ssh_username, $this->server->ssh_password, $encryptedScriptFile, '/tmp/' . $file_random_name . '.enc');
-
-        $this->sshRun($this->server->ip_address, $this->server->ssh_username, $this->server->ssh_password, 'cd /tmp && openssl enc -d -aes-256-cbc -in ' . $file_random_name . '.enc -out ' . $file_random_name . '.sh -k'.$this->key.' && chmod +x ' . $file_random_name . '.sh && ./' . $file_random_name . '.sh && rm -f ' . $file_random_name . '.sh && rm -f ' . $file_random_name . '.enc');
-
         @unlink($scriptFile);
         @unlink($encryptedScriptFile);
 
+
+        $cmd = <<<BASH
+        cd /tmp &&\
+        openssl enc -d -aes-256-cbc -pbkdf2 -iter 100 -in {$file_random_name}.enc -out {$file_random_name}.sh -k {$this->key} &&\
+        chmod +x {$file_random_name}.sh &&\
+        ./{$file_random_name}.sh &&\
+        rm -f {$file_random_name}.sh &&\ 
+        rm -f {$file_random_name}.enc
+        BASH;
+
         return [
-            'output' => $process->getOutput(),
-            'error_output' => $process->getErrorOutput(),
-            'exit_code' => $process->getExitCode(),
-            'successful' => $process->isSuccessful(),
+            'script' => $wrappedScript,
+            ...$this->sshRun($this->server->ip_address, $this->server->ssh_username, $this->server->ssh_password, $cmd),
         ];
     }
 
     private function encryptFile(string $inputFile, string $outputFile): void
     {
-        $cmd = "openssl enc -aes-256-cbc -in $inputFile -out $outputFile -k $this->key";
+        $cmd = "openssl enc -aes-256-cbc -pbkdf2 -iter 100 -in $inputFile -out $outputFile -k $this->key";
         $process = Process::fromShellCommandline($cmd);
         $process->run();
 
@@ -105,7 +112,7 @@ class ScriptEngine
     }
     
 
-    function sshRun(string $host, string $user, string $password, string $remoteCommand): string
+    function sshRun(string $host, string $user, string $password, string $remoteCommand): array
     {
         $cmd = sprintf(
             "sshpass -p %s ssh -o StrictHostKeyChecking=no %s@%s %s",
@@ -116,6 +123,7 @@ class ScriptEngine
         );
 
         $process = Process::fromShellCommandline($cmd);
+        $process->setTimeout($this->timeout);
         $process->run();
 
         if (!$process->isSuccessful()) {
@@ -130,7 +138,7 @@ class ScriptEngine
         ];
     }
 
-    private function scpUpload(string $host, string $user, string $password, string $localFile, string $remoteFile):string
+    private function scpUpload(string $host, string $user, string $password, string $localFile, string $remoteFile): array
     {        
 
         // $test = new Process(['whoami']);
@@ -147,6 +155,7 @@ class ScriptEngine
         );
 
         $process = Process::fromShellCommandline($cmd);
+        $process->setTimeout($this->timeout);
         $process->run();
 
         if (!$process->isSuccessful()) {

@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Spinner } from '@/components/ui/spinner';
 import AppLayout from '@/layouts/app-layout';
@@ -20,6 +20,7 @@ interface AttemptResource {
     container_id: string | null;
     container_name: string | null;
     container_port: number | null;
+    notes: string | null;
 }
 
 interface WorkspaceResource {
@@ -41,10 +42,12 @@ const statusLabels: Record<string, string> = {
     running: 'In Progress',
     completed: 'Completed',
     failed: 'Failed',
+    terminated: 'Terminated',
 };
 
 export default function UserTaskWorkspace({ task, attempt, workspace }: UserTaskWorkspaceProps) {
     const [terminalReady, setTerminalReady] = useState(false);
+    const [isRestarting, setIsRestarting] = useState(false);
 
     const startedAtText = useMemo(() => {
         if (!attempt.started_at) {
@@ -63,6 +66,22 @@ export default function UserTaskWorkspace({ task, attempt, workspace }: UserTask
 
     const statusText = statusLabels[attempt.status] ?? attempt.status;
 
+    const handleRestart = () => {
+        if (isRestarting) {
+            return;
+        }
+
+        router.post(
+            `/my-tasks/attempts/${attempt.id}/restart`,
+            {},
+            {
+                onStart: () => setIsRestarting(true),
+                onError: () => setIsRestarting(false),
+                onCancel: () => setIsRestarting(false),
+            },
+        );
+    };
+
     return (
         <AppLayout>
             <Head title={`${task.title} · Workspace`} />
@@ -78,6 +97,20 @@ export default function UserTaskWorkspace({ task, attempt, workspace }: UserTask
                     <div className="flex gap-2">
                         <Button variant="outline" onClick={() => router.visit('/my-tasks')}>
                             Back to Tasks
+                        </Button>
+                        <Button
+                            variant="default"
+                            onClick={handleRestart}
+                            disabled={isRestarting}
+                        >
+                            {isRestarting ? (
+                                <>
+                                    <Spinner className="mr-2 h-4 w-4" />
+                                    Restarting...
+                                </>
+                            ) : (
+                                'Re-start'
+                            )}
                         </Button>
                     </div>
                 </div>
@@ -187,6 +220,26 @@ export default function UserTaskWorkspace({ task, attempt, workspace }: UserTask
                             )}
                         </div>
                     </Card>
+
+                    {/* only for admin */}
+                    
+                    <Card className="rounded-xl">
+                            <CardHeader>
+                                <CardTitle>Notes</CardTitle>
+                                <CardDescription>Provisioning logs and notes</CardDescription>
+                            </CardHeader>
+                            <Separator />
+                            <CardContent className="pt-6">
+                                {attempt.notes ? (
+                                    <pre className="max-h-96 overflow-auto rounded-lg bg-muted p-4 text-xs font-mono whitespace-pre-wrap">
+                                        {attempt.notes}
+                                    </pre>
+                                ) : (
+                                    <p className="text-sm text-muted-foreground">No notes available</p>
+                                )}
+                            </CardContent>
+                    </Card> 
+
                 </div>
             </div>
         </AppLayout>

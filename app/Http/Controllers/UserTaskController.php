@@ -54,9 +54,6 @@ class UserTaskController extends Controller
         // Load the server relationship if it exists
         $task->loadMissing('server');
 
-        // Set the server on the workspace service
-        $this->workspace->setServer($task->server);
-
         $existingAttempt = UserTaskAttempt::query()
             ->where('user_id', $user->id)
             ->where('task_id', $task->id)
@@ -130,6 +127,7 @@ class UserTaskController extends Controller
                 'container_id' => $attempt->container_id,
                 'container_name' => $attempt->container_name,
                 'container_port' => $attempt->container_port,
+                'notes' => $attempt->notes,
             ],
             'workspace' => [
                 'terminal_url' => $terminalUrl,
@@ -139,5 +137,32 @@ class UserTaskController extends Controller
                 'password' => $metadata['workspace_password'] ?? null,
             ],
         ]);
+    }
+
+    public function restart(Request $request, UserTaskAttempt $attempt): RedirectResponse
+    {
+        $user = $request->user();
+
+        if ($attempt->user_id !== $user->id) {
+            abort(403);
+        }
+
+        $attempt->loadMissing('task');
+        $task = $attempt->task;
+
+        // Terminate the current attempt
+        if (in_array($attempt->status, ['pending', 'running'])) {
+            $attempt->status = 'terminated';
+            $attempt->completed_at = now();
+            $attempt->save();
+        }
+
+        // Load the server relationship if it exists
+        $task->loadMissing('server');
+
+        // Create a new attempt
+        $newAttempt = $this->workspace->start($task, $user);
+
+        return redirect()->route('user-tasks.show', $newAttempt);
     }
 }

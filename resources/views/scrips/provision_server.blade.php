@@ -1,8 +1,6 @@
 # Provision remote server
 # This script runs ON the remote server after being uploaded by ScriptEngine
 
-set -e
-
 echo "Starting server provisioning..."
 
 # Check if Docker is installed
@@ -63,4 +61,20 @@ elif docker compose version &> /dev/null; then
 fi
 
 echo "Server provisioning completed successfully"
+
+# Install Caddy
+echo "Installing Caddy..."
+apt install -y debian-keyring debian-archive-keyring apt-transport-https
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | tee /etc/apt/trusted.gpg.d/caddy-stable.asc
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
+apt update
+apt install caddy
+
+mkdir -p /etc/caddy/sites 
+touch /etc/caddy/Caddyfile
+
+cat > /etc/caddy/Caddyfile << 'CADDY_EOF'
+import /etc/caddy/sites/*.caddy
+CADDY_EOF
+
 

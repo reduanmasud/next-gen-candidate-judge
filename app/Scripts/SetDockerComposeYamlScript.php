@@ -5,6 +5,7 @@ namespace App\Scripts;
 class SetDockerComposeYamlScript extends Script
 {
     public function __construct(
+        protected string $username,
         protected string $workspacePath,
         protected string $dockerComposeYaml,
     ) {
@@ -13,7 +14,7 @@ class SetDockerComposeYamlScript extends Script
 
     public function name(): string
     {
-        return 'Set Docker Compose Yaml Script';
+        return 'Set Docker Compose Yaml Script for user'. $this->username;
     }
 
     public function template(): string

@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
+use App\Http\Controllers\ScriptJobRunController;
 
 Route::get('/', function () {
     return Inertia::render('welcome', [
@@ -14,6 +15,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', function () {
         return Inertia::render('dashboard');
     })->name('dashboard');
+
+    Route::get('/jobs', [ScriptJobRunController::class, 'index'])->name('jobs.index');
+    Route::get('/jobs/{jobRun}', [ScriptJobRunController::class, 'show'])->name('jobs.show');
+    Route::get('/jobs/{jobRun}/status', [ScriptJobRunController::class, 'status'])->name('jobs.status');
 });
 
 require __DIR__.'/settings.php';

@@ -35,4 +35,8 @@ class Task extends Model
         return $this->attempts()->where('user_id', $user->id);
     }
 
+    public function jobRuns(): HasMany
+    {
+        return $this->hasMany(ScriptJobRun::class);
+    }
 }
