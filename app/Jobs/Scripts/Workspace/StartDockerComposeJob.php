@@ -36,7 +36,7 @@ class StartDockerComposeJob implements ShouldQueue
     public function handle(ScriptEngine $engine): void
     {
         $script = ScriptDescriptor::make(
-            'scrips.start_docker_compose',
+            'scripts.start_docker_compose',
             [
                 'workspacePath' => $this->workspacePath,
             ],

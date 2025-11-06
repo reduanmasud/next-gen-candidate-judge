@@ -11,7 +11,6 @@ class ScriptWrapper
 set -euo pipefail
 
 {$script}
-
 BASH_SCRIPT_EOT;
 
 }

@@ -32,7 +32,7 @@ class CreateUserJob extends BaseWorkspaceJob
     public function handle(ScriptEngine $engine): void
     {
         $script = ScriptDescriptor::make(
-            'scrips.create_user',
+            'scripts.create_user',
             [
                 'username' => $this->username,
                 'password' => $this->password,

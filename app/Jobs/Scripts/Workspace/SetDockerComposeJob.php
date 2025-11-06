@@ -32,7 +32,7 @@ class SetDockerComposeJob extends BaseWorkspaceJob
     public function handle(ScriptEngine $engine): void
     {
         $script = ScriptDescriptor::make(
-            'scrips.set_docker_compose_yaml',
+            'scripts.set_docker_compose_yaml',
             [
                 'workspacePath' => $this->workspacePath,
                 'dockerComposeYaml' => $this->dockerComposeYaml,
