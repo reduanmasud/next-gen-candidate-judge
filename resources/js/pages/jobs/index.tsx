@@ -11,7 +11,7 @@ interface JobRun {
     id: number;
     script_name: string;
     status: 'pending' | 'running' | 'completed' | 'failed';
-    user: { id: number; name: string };
+    user?: { id: number; name: string };
     task?: { id: number; title: string };
     server?: { id: number; name: string };
     created_at: string;
@@ -90,7 +90,7 @@ export default function JobsIndex({ jobRuns, filters }: Props) {
                                                 {getStatusBadge(job.status)}
                                             </div>
                                             <p className="text-sm text-muted-foreground">
-                                                Triggered by {job.user.name}
+                                                Triggered by {job.user?.name}
                                             </p>
                                             {job.task && (
                                                 <p className="text-sm text-muted-foreground">

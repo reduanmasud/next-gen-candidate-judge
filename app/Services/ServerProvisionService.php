@@ -2,8 +2,11 @@
 
 namespace App\Services;
 
-use App\Jobs\Scripts\Server\ProvisionServerJob;
-use App\Jobs\Scripts\Server\SetupTraefikForServerJob;
+use App\Jobs\Scripts\Server\InstallAndSetupTraefikJob;
+use App\Jobs\Scripts\Server\InstallDockerJob;
+use App\Jobs\Scripts\Server\InstallNecesseryPackagesJob;
+use App\Jobs\Scripts\Server\StartProvisioningJob;
+use App\Jobs\Scripts\Server\UpdateServerPackageJob;
 use App\Models\Server;
 use RuntimeException;
 use App\Traits\AppendsNotes;
@@ -14,12 +17,12 @@ class ServerProvisionService
 {
     use AppendsNotes;
     public function __construct(
-        protected ScriptEngine $engine,
+  
     ) {
         //
     }
 
-    public function provision(Server $server, string $sshUsername, string $sshPassword): void
+    public function provision(Server $server): void
     {
         $server->status = 'provisioning';
         $server->save();
@@ -28,8 +31,12 @@ class ServerProvisionService
 
         // Dispatch job chain
         Bus::chain([
-            new ProvisionServerJob($server, $sshUsername, $sshPassword),
-            new SetupTraefikForServerJob($server, $cloudflareApiToken),
+            new StartProvisioningJob($server),
+            new UpdateServerPackageJob($server),
+            new InstallNecesseryPackagesJob($server),
+            new InstallDockerJob($server),
+            new InstallAndSetupTraefikJob($server, $cloudflareApiToken),
+
         ])->onQueue('default')->dispatch();
 
         $server->notes = $this->appendToNotes(

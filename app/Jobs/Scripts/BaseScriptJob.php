@@ -2,73 +2,53 @@
 
 namespace App\Jobs\Scripts;
 
-use App\Jobs\Scripts\Concerns\HandlesScriptExecution;
+use App\Models\Server;
 use App\Models\ScriptJobRun;
 use App\Models\User;
+use App\Models\UserTaskAttempt;
+use App\Scripts\Script;
+use App\Scripts\ScriptDescriptor;
+use App\Services\ScriptEngine;
+use App\Services\ScriptWrapper;
+use App\Traits\AppendsNotes;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
 /**
- * Base class for all script-related jobs.
- *
- * Provides common traits, default timeout/tries values, and a shared failed() 
- * implementation to reduce duplication across script jobs.
+ * Base class for all script-related jobs.`
  */
 abstract class BaseScriptJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
-    use HandlesScriptExecution;
+    use AppendsNotes;
 
-    /**
-     * The number of seconds the job can run before timing out.
-     * Child classes may override this value.
-     *
-     * @var int
-     */
     public $timeout = 900; // 15 minutes
-
-    /**
-     * The number of times the job may be attempted.
-     * Child classes may override this value.
-     *
-     * @var int
-     */
     public $tries = 1;
 
-
-    /**
-     * The user to associate with the job run.
-     * Child classes may set this value in their constructor.
-     *
-     * @var User|null
-     */
-    public ?User $authUser = null;
+    protected ScriptWrapper $wrapper;
+    protected string $script;
+    public ?User $authUser;
 
     public function __construct()
     {
-        $this->authUser = auth()->user();
+        $this->authUser = Auth::user();
+        $this->wrapper = new ScriptWrapper();
     }
 
     /**
-     * Default failed handler for script jobs.
-     * 
-     * Attempts to find and update the associated ScriptJobRun record if it exists,
-     * and logs the error. Child classes can override this method for custom behavior.
-     *
-     * @param Throwable $exception
-     * @return void
+     * Handle job failures.
      */
     public function failed(Throwable $exception): void
     {
         try {
-            // Try to find the most recent ScriptJobRun associated with this job
             $jobRun = $this->findAssociatedScriptJobRun();
-            
+
             if ($jobRun) {
                 $jobRun->update([
                     'status' => 'failed',
@@ -81,8 +61,7 @@ abstract class BaseScriptJob implements ShouldQueue
                 ]);
             }
         } catch (Throwable $e) {
-            // Swallow - we don't want failed() to throw and break the queue infrastructure
-            Log::error('Error while running failed() handler on script job', [
+            Log::error('Error updating failed script job run', [
                 'job_class' => static::class,
                 'exception' => $e->getMessage(),
             ]);
@@ -95,22 +74,12 @@ abstract class BaseScriptJob implements ShouldQueue
         ]);
     }
 
-    /**
-     * Attempt to find the ScriptJobRun associated with this job.
-     * 
-     * Child classes can override this method to provide custom logic
-     * for finding the associated ScriptJobRun.
-     *
-     * @return ScriptJobRun|null
-     */
     protected function findAssociatedScriptJobRun(): ?ScriptJobRun
     {
-        // Check if the job has a direct reference to a ScriptJobRun
         if (property_exists($this, 'jobRun') && $this->jobRun instanceof ScriptJobRun) {
             return $this->jobRun;
         }
 
-        // Check if the job has a server property and find the most recent running job
         if (property_exists($this, 'server') && $this->server) {
             return ScriptJobRun::where('server_id', $this->server->id)
                 ->where('status', 'running')
@@ -118,7 +87,6 @@ abstract class BaseScriptJob implements ShouldQueue
                 ->first();
         }
 
-        // Check if the job has an attempt property and find via attempt_id
         if (property_exists($this, 'attempt') && $this->attempt) {
             return ScriptJobRun::where('attempt_id', $this->attempt->id)
                 ->where('status', 'running')
@@ -129,20 +97,65 @@ abstract class BaseScriptJob implements ShouldQueue
         return null;
     }
 
-    /**
-     * Append a message to existing error output.
-     *
-     * @param string|null $existing
-     * @param string $message
-     * @return string
-     */
     protected function appendToErrorOutput(?string $existing, string $message): string
     {
-        if (!$existing) {
-            return $message;
+        return $existing ? trim($existing) . "\n" . $message : $message;
+    }
+
+    protected function createScriptJobRun(
+        Script|ScriptDescriptor $script,
+        ?UserTaskAttempt $attempt = null,
+        ?Server $server = null,
+        array $metadata = []
+    ): ScriptJobRun {
+        $name = $script instanceof ScriptDescriptor ? $script->name : $script->name();
+        $template = $script instanceof ScriptDescriptor ? $script->template : $script->template();
+
+        $this->script = $this->getWrapper()->wrap(view($template, $script instanceof ScriptDescriptor ? $script->data : [])->render());
+
+        return ScriptJobRun::create([
+            'script_name' => $name,
+            'script_path' => $template,
+            'status' => 'running',
+            'user_id' => $this->authUser?->id,
+            'server_id' => $server?->id,
+            'task_id' => $attempt?->task_id,
+            'attempt_id' => $attempt?->id,
+            'started_at' => now(),
+            'metadata' => $metadata,
+            'script_content' => $this->script,
+        ]);
+    }
+
+    protected function executeScriptAndRecord(
+        ScriptEngine $engine,
+        ScriptJobRun $jobRun,
+        ?Server $server = null
+    ): array {
+        if ($server) {
+            $engine->setServer($server);
         }
 
-        return trim($existing) . "\n" . $message;
-    }
-}
+        $result = $engine->executeViaStdin($jobRun->script_content);
 
+        $jobRun->update([
+            'script_content' => $result['script'] ?? $jobRun->script_content,
+            'output' => $result['output'] ?? '',
+            'error_output' => $result['error_output'] ?? '',
+            'exit_code' => $result['exit_code'] ?? 0,
+            'status' => $result['successful'] ? 'completed' : 'failed',
+            'completed_at' => now(),
+        ]);
+
+        return $result;
+    }
+
+    protected function getWrapper(): ScriptWrapper
+    {
+        if (!isset($this->wrapper)) {
+            $this->wrapper = new ScriptWrapper();
+        }
+        return $this->wrapper;
+    }
+
+}

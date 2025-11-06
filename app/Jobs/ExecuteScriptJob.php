@@ -73,7 +73,7 @@ class ExecuteScriptJob implements ShouldQueue
                 'exit_code' => $result['exit_code'],
             ]);
 
-            
+
         } catch (\Throwable $e) {
             $this->jobRun->update([
                 'status' => 'failed',
@@ -85,6 +85,8 @@ class ExecuteScriptJob implements ShouldQueue
                 'task' => $this->task?->id,
                 'exception' => $e->getMessage(),
             ]);
+
+            throw $e; // Re-throw to fail the job properly
         }
 
     }

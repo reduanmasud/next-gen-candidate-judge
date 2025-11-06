@@ -17,7 +17,7 @@ interface JobRun {
     exit_code: number | null;
     notes: string | null;
     metadata: Record<string, any> | null;
-    user: { id: number; name: string };
+    user?: { id: number; name: string };
     task?: { id: number; title: string };
     server?: { id: number; name: string };
     attempt?: { id: number; status: string };
@@ -80,10 +80,10 @@ export default function JobShow({ jobRun: initialJobRun }: Props) {
                         <CardTitle>Job Details</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2">
-                        <p><strong>Triggered by:</strong> {jobRun.user.name}</p>
-                        {jobRun.task && <p><strong>Task:</strong> {jobRun.task.title}</p>}
-                        {jobRun.server && <p><strong>Server:</strong> {jobRun.server.name}</p>}
-                        {jobRun.attempt && (
+                        {jobRun?.user && <p><strong>Triggered by:</strong> {jobRun.user.name}</p>}
+                        {jobRun?.task && <p><strong>Task:</strong> {jobRun.task.title}</p>}
+                        {jobRun?.server && <p><strong>Server:</strong> {jobRun.server.name}</p>}
+                        {jobRun?.attempt && (
                             <p><strong>Attempt ID:</strong> {jobRun.attempt.id} ({jobRun.attempt.status})</p>
                         )}
                         {jobRun.script_path && <p><strong>Script Path:</strong> {jobRun.script_path}</p>}

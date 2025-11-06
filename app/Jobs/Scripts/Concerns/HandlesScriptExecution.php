@@ -10,10 +10,12 @@ use App\Scripts\ScriptDescriptor;
 use App\Services\ScriptEngine;
 use App\Traits\AppendsNotes;
 use Illuminate\Support\Facades\Log;
+use App\Services\ScriptWrapper;
 
 trait HandlesScriptExecution
 {
     use AppendsNotes;
+    protected ScriptWrapper $wrapper;
     /**
      * Create a ScriptJobRun record with standard fields.
      */
@@ -27,6 +29,8 @@ trait HandlesScriptExecution
             $name = $script->name();
             $path = $script->template();
         }
+        $this->wrapper = new ScriptWrapper();
+        $this->script = $this->wrapper->wrap(view($script->template, $script->data)->render());
 
         Log::info('Creating script job run', [
             'script_name' => $name,
@@ -61,25 +65,28 @@ trait HandlesScriptExecution
     }
 
     /**
+     * Append a timestamped message to a Server's notes field.
+     */
+    protected function appendServerNotes(Server $server, string $message): void
+    {
+        $server->update([
+            'notes' => $this->appendToNotes($server->notes, $message),
+        ]);
+    }
+
+    /**
      * Execute a script via the provided ScriptEngine and update the job run record.
      * Returns the raw engine result array.
      */
-    protected function executeScriptAndRecord(Script|ScriptDescriptor $script, ScriptEngine $engine, ScriptJobRun $jobRun, ?UserTaskAttempt $attempt = null, ?Server $server = null): array
+    protected function executeScriptAndRecord(String $script, ScriptEngine $engine, ScriptJobRun $jobRun, ?UserTaskAttempt $attempt = null, ?Server $server = null): array
     {
         if ($server) {
             $engine->setServer($server);
         }
 
-        // Render script content depending on descriptor vs object
-        if ($script instanceof ScriptDescriptor) {
-            $rendered = view($script->template, $script->data)->render();
-        } else {
-            $rendered = view($script->template(), $script->data())->render();
-        }
-
         // Store rendered script content before executing
         $jobRun->update([
-            'script_content' => $rendered,
+            'script_content' => $script,
         ]);
 
         $result = $engine->executeViaStdin($script);

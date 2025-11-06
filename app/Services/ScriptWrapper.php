@@ -2,9 +2,9 @@
 
 namespace App\Services;
 
-class ScriptWrapper
+final class ScriptWrapper
 {
-    public function wrap(string $script): string
+    public static function wrap(string $script): string
     {
         return <<< BASH_SCRIPT_EOT
 #!/bin/bash

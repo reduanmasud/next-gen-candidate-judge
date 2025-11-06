@@ -32,7 +32,7 @@ class ScriptEngine
     /**
      * Execute a script. Accepts either an App\Scripts\Script instance or a ScriptDescriptor.
      */
-    public function execute(Script|ScriptDescriptor $script): array
+    public function execute(Script|ScriptDescriptor|String $script): array
     {
 
         if ($script instanceof ScriptDescriptor) {
@@ -72,19 +72,14 @@ class ScriptEngine
     /**
      * Execute a script by streaming it to bash via STDIN. Accepts Script or ScriptDescriptor.
      */
-    public function executeViaStdin(Script|ScriptDescriptor $script, int $timeoutSeconds = 900): array
+    public function executeViaStdin(String $script, int $timeoutSeconds = 900): array
     {
         if (! $this->server) {
             throw new \RuntimeException('Server is not set. Call setServer() before executing remote scripts.');
         }
+        
+        $wrappedScript = $script;
 
-        if ($script instanceof ScriptDescriptor) {
-            $rendered = view($script->template, $script->data)->render();
-        } else {
-            $rendered = view($script->template(), $script->data())->render();
-        }
-
-        $wrappedScript = $this->wrapper->wrap($rendered);
 
         $file_random_name = bin2hex(random_bytes(16));
 
