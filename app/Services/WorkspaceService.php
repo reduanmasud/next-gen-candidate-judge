@@ -37,7 +37,7 @@ class WorkspaceService
         // Generate credentials
         $username = "user_{$attempt->id}";
         $password = $this->generatePassword();
-        $workspacePath = '/home/' . $username . '/workspace';
+        $workspacePath = '/home/' . $username . '/workspace_' . $attempt->id;
 
         // Update attempt with initial notes
         $attempt->notes = $this->appendToNotes(
