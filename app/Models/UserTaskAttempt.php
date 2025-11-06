@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use App\Traits\HasMeta;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class UserTaskAttempt extends Model
 {
+    use HasMeta;
     protected $fillable = [
         'user_id',
         'task_id',
@@ -18,11 +20,14 @@ class UserTaskAttempt extends Model
         'started_at',
         'completed_at',
         'score',
+        'notes',
+        'metadata',
     ];
 
     protected $casts = [
         'started_at' => 'datetime',
         'completed_at' => 'datetime',
+        'metadata' => 'array',
     ];
 
     public function user(): BelongsTo

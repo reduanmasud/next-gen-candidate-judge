@@ -37,11 +37,13 @@ export default function UserTasksIndex({ tasks }: UserTasksIndexProps) {
             return;
         }
 
+        // Set preparingTaskId immediately to prevent double-clicks
+        setPreparingTaskId(task.id);
+
         router.post(
             `/my-tasks/${task.id}/start`,
             {},
             {
-                onStart: () => setPreparingTaskId(task.id),
                 onError: () => setPreparingTaskId(null),
                 onCancel: () => setPreparingTaskId(null),
             },

@@ -54,20 +54,25 @@ class UserTaskController extends Controller
         // Load the server relationship if it exists
         $task->loadMissing('server');
 
-        $existingAttempt = UserTaskAttempt::query()
-            ->where('user_id', $user->id)
-            ->where('task_id', $task->id)
-            ->whereIn('status', ['pending', 'running'])
-            ->latest('id')
-            ->first();
+        // Use database transaction to prevent race condition
+        return \DB::transaction(function () use ($user, $task) {
+            // Lock the row to prevent concurrent attempts
+            $existingAttempt = UserTaskAttempt::query()
+                ->where('user_id', $user->id)
+                ->where('task_id', $task->id)
+                ->whereIn('status', ['pending', 'running'])
+                ->lockForUpdate()
+                ->latest('id')
+                ->first();
 
-        if ($existingAttempt) {
-            return redirect()->route('user-tasks.show', $existingAttempt);
-        }
+            if ($existingAttempt) {
+                return redirect()->route('user-tasks.show', $existingAttempt);
+            }
 
-        $attempt = $this->workspace->start($task, $user);
+            $attempt = $this->workspace->start($task, $user);
 
-        return redirect()->route('user-tasks.show', $attempt);
+            return redirect()->route('user-tasks.show', $attempt);
+        });
     }
 
     public function show(Request $request, UserTaskAttempt $attempt): Response

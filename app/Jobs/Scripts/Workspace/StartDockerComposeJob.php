@@ -64,6 +64,8 @@ class StartDockerComposeJob implements ShouldQueue
                 'started_at' => now(),
             ]);
 
+
+
             $this->appendAttemptNotes(
                 $this->attempt,
                 sprintf(
@@ -85,10 +87,22 @@ class StartDockerComposeJob implements ShouldQueue
                 'job_run_id' => $jobRun->id,
             ]);
 
+
+            // Update job run metadata using HasMeta trait
+            $jobRun->setMeta('containers', $containers);
+            $jobRun->setMeta('primary_container', $primaryContainer);
+            $jobRun->setMeta('primary_container_name', Arr::get($primaryContainer, 'Name'));
+
+
+            // Update attempt metadata using HasMeta trait
+            $this->attempt->setMeta('containers', $containers);
+            $this->attempt->setMeta('primary_container', $primaryContainer);
+            $this->attempt->setMeta('primary_container_name', Arr::get($primaryContainer, 'Name'));
+
         } catch (Throwable $e) {
             $jobRun->update([
                 'status' => 'failed',
-                'error_output' => $e->getMessage(),
+                'error_output' =>"Failed to start docker compose: " . $e->getMessage(),
                 'failed_at' => now(),
                 'completed_at' => now(),
             ]);

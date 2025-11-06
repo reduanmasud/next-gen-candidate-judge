@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use App\Traits\HasMeta;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ScriptJobRun extends Model
 {
+    use HasMeta;
     protected $fillable = [
         'job_id',
         'script_name',
