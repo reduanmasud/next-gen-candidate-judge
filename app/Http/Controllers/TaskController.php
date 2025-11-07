@@ -3,10 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Models\Task;
+use App\Models\AiJudge;
+use App\Models\QuizJudge;
+use App\Models\TextJudge;
+use App\Models\AutoJudge;
+use App\Models\QuizQuestionAnswer;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
+use Illuminate\Support\Facades\DB;
 
 class TaskController extends Controller
 {
@@ -45,7 +51,7 @@ class TaskController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        
+
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'required|string',
@@ -53,13 +59,41 @@ class TaskController extends Controller
             'score' => 'required|integer|min:0',
             'is_active' => 'required|boolean',
             'server_id' => 'nullable|exists:servers,id',
+            'pre_script' => 'nullable|string',
+            'post_script' => 'nullable|string',
+            'judge_type' => 'nullable|string|in:AiJudge,QuizJudge,TextJudge,AutoJudge',
+            'ai_judges' => 'nullable|array',
+            'ai_judges.*.prompt' => 'required_with:ai_judges|string',
+            'ai_judges.*.question' => 'required_with:ai_judges|string',
+            'ai_judges.*.answer' => 'required_with:ai_judges|string',
+            'quiz_questions' => 'nullable|array',
+            'quiz_questions.*.question' => 'required_with:quiz_questions|string',
+            'quiz_questions.*.options' => 'required_with:quiz_questions|array',
+            'quiz_questions.*.options.*.text' => 'required|string',
+            'quiz_questions.*.options.*.is_correct' => 'required|boolean',
+            'text_judges' => 'nullable|array',
+            'text_judges.*.question' => 'required_with:text_judges|string',
+            'text_judges.*.answer' => 'required_with:text_judges|string',
+            'judge_script' => 'nullable|string',
         ]);
 
-        $task = new Task($validated);
-        $task->user_id = auth()->user()->id;
-        $task->save();
+        DB::beginTransaction();
+        try {
+            $task = new Task($validated);
+            $task->user_id = auth()->user()->id;
+            $task->save();
 
-        return redirect()->route('tasks.index')->with('success', 'Task created successfully');
+            // Handle judge configurations based on judge_type
+            if (!empty($validated['judge_type'])) {
+                $this->saveJudgeConfiguration($task, $validated);
+            }
+
+            DB::commit();
+            return redirect()->route('tasks.index')->with('success', 'Task created successfully');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->withErrors(['error' => 'Failed to create task: ' . $e->getMessage()])->withInput();
+        }
     }
 
     /**
@@ -67,11 +101,14 @@ class TaskController extends Controller
      */
     public function show(Task $task): Response
     {
-        
+
 
         if (!$task) {
             abort(404, 'Task not found');
         }
+
+        // Load judge configurations
+        $task = $this->loadJudgeConfigurations($task);
 
         return Inertia::render('tasks/show', [
             'task' => $task,
@@ -83,6 +120,9 @@ class TaskController extends Controller
      */
     public function edit(Task $task): Response
     {
+        // Load judge configurations
+        $task = $this->loadJudgeConfigurations($task);
+
         return Inertia::render('tasks/edit', [
             'task' => $task,
         ]);
@@ -99,10 +139,45 @@ class TaskController extends Controller
             'docker_compose_yaml' => 'required|string',
             'score' => 'required|integer|min:0',
             'is_active' => 'required|boolean',
+            'pre_script' => 'nullable|string',
+            'post_script' => 'nullable|string',
+            'judge_type' => 'nullable|string|in:AiJudge,QuizJudge,TextJudge,AutoJudge',
+            'ai_judges' => 'nullable|array',
+            'ai_judges.*.prompt' => 'required_with:ai_judges|string',
+            'ai_judges.*.question' => 'required_with:ai_judges|string',
+            'ai_judges.*.answer' => 'required_with:ai_judges|string',
+            'quiz_questions' => 'nullable|array',
+            'quiz_questions.*.question' => 'required_with:quiz_questions|string',
+            'quiz_questions.*.options' => 'required_with:quiz_questions|array',
+            'quiz_questions.*.options.*.text' => 'required|string',
+            'quiz_questions.*.options.*.is_correct' => 'required|boolean',
+            'text_judges' => 'nullable|array',
+            'text_judges.*.question' => 'required_with:text_judges|string',
+            'text_judges.*.answer' => 'required_with:text_judges|string',
+            'judge_script' => 'nullable|string',
         ]);
 
-        $task->update($validated);
-        return redirect()->route('tasks.index')->with('success', 'Task updated successfully');
+        DB::beginTransaction();
+        try {
+            $task->update($validated);
+
+            // Delete existing judge records
+            $task->aiJudges()->delete();
+            $task->quizJudges()->delete();
+            $task->textJudges()->delete();
+            $task->autoJudge()->delete();
+
+            // Handle judge configurations based on judge_type
+            if (!empty($validated['judge_type'])) {
+                $this->saveJudgeConfiguration($task, $validated);
+            }
+
+            DB::commit();
+            return redirect()->route('tasks.index')->with('success', 'Task updated successfully');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->withErrors(['error' => 'Failed to update task: ' . $e->getMessage()])->withInput();
+        }
     }
 
     /**
@@ -112,5 +187,118 @@ class TaskController extends Controller
     {
         $task->delete();
         return redirect()->route('tasks.index')->with('success', 'Task deleted successfully');
+    }
+
+    /**
+     * Save judge configuration based on judge type
+     */
+    private function saveJudgeConfiguration(Task $task, array $validated): void
+    {
+        switch ($validated['judge_type']) {
+            case 'AiJudge':
+                if (!empty($validated['ai_judges'])) {
+                    foreach ($validated['ai_judges'] as $aiJudge) {
+                        AiJudge::create([
+                            'task_id' => $task->id,
+                            'prompt' => $aiJudge['prompt'],
+                            'question' => $aiJudge['question'],
+                            'answer' => $aiJudge['answer'],
+                        ]);
+                    }
+                }
+                break;
+
+            case 'QuizJudge':
+                if (!empty($validated['quiz_questions'])) {
+                    foreach ($validated['quiz_questions'] as $quizQuestion) {
+                        $quizJudge = QuizJudge::create([
+                            'task_id' => $task->id,
+                            'questions' => json_encode($quizQuestion['question']),
+                        ]);
+
+                        // Create quiz question answers
+                        if (!empty($quizQuestion['options'])) {
+                            foreach ($quizQuestion['options'] as $option) {
+                                QuizQuestionAnswer::create([
+                                    'quiz_judge_id' => $quizJudge->id,
+                                    'choice' => $option['text'],
+                                    'is_correct' => $option['is_correct'],
+                                ]);
+                            }
+                        }
+                    }
+                }
+                break;
+
+            case 'TextJudge':
+                if (!empty($validated['text_judges'])) {
+                    foreach ($validated['text_judges'] as $textJudge) {
+                        TextJudge::create([
+                            'task_id' => $task->id,
+                            'questions' => $textJudge['question'],
+                            'answers' => $textJudge['answer'],
+                        ]);
+                    }
+                }
+                break;
+
+            case 'AutoJudge':
+                if (!empty($validated['judge_script'])) {
+                    AutoJudge::create([
+                        'task_id' => $task->id,
+                        'judge_script' => $validated['judge_script'],
+                    ]);
+                }
+                break;
+        }
+    }
+
+    /**
+     * Load judge configurations for a task
+     */
+    private function loadJudgeConfigurations(Task $task): Task
+    {
+        // Load all judge relationships
+        $task->load(['aiJudges', 'quizJudges.quizQuestionAnswers', 'textJudges', 'autoJudge']);
+
+        // Format data for frontend
+        if ($task->judge_type === 'AiJudge') {
+            $task->ai_judges = $task->aiJudges->map(function ($aiJudge) {
+                return [
+                    'prompt' => $aiJudge->prompt,
+                    'question' => $aiJudge->question,
+                    'answer' => $aiJudge->answer,
+                ];
+            })->toArray();
+        }
+
+        if ($task->judge_type === 'QuizJudge') {
+            $task->quiz_questions = $task->quizJudges->map(function ($quizJudge) {
+                return [
+                    'question' => json_decode($quizJudge->questions, true),
+                    'options' => $quizJudge->quizQuestionAnswers->map(function ($answer) {
+                        return [
+                            'text' => $answer->choice,
+                            'is_correct' => $answer->is_correct,
+                        ];
+                    })->toArray(),
+                ];
+            })->toArray();
+        }
+
+        if ($task->judge_type === 'TextJudge') {
+            $task->text_judges = $task->textJudges->map(function ($textJudge) {
+                return [
+                    'question' => $textJudge->questions,
+                    'answer' => $textJudge->answers,
+                ];
+            })->toArray();
+        }
+
+        if ($task->judge_type === 'AutoJudge' && $task->autoJudge) {
+            $task->judge_script = $task->autoJudge->judge_script;
+        }
+
+        return $task;
     }
 }

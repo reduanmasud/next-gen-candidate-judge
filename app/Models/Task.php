@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Task extends Model
 {
@@ -14,6 +15,9 @@ class Task extends Model
         'score',
         'is_active',
         'server_id',
+        'pre_script',
+        'post_script',
+        'judge_type',
     ];
 
     public function user()
@@ -38,5 +42,25 @@ class Task extends Model
     public function jobRuns(): HasMany
     {
         return $this->hasMany(ScriptJobRun::class);
+    }
+
+    public function quizJudges(): HasMany
+    {
+        return $this->hasMany(QuizJudge::class);
+    }
+
+    public function textJudges(): HasMany
+    {
+        return $this->hasMany(TextJudge::class);
+    }
+
+    public function aiJudges(): HasMany
+    {
+        return $this->hasMany(AiJudge::class);
+    }
+
+    public function autoJudge(): HasOne
+    {
+        return $this->hasOne(AutoJudge::class);
     }
 }

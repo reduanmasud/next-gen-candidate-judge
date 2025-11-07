@@ -2,6 +2,31 @@ import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link } from '@inertiajs/react';
+import { Badge } from '@/components/ui/badge';
+import { CheckCircle2Icon } from 'lucide-react';
+
+type JudgeType = 'AiJudge' | 'QuizJudge' | 'TextJudge' | 'AutoJudge' | '';
+
+interface AiJudgeEntry {
+    prompt: string;
+    question: string;
+    answer: string;
+}
+
+interface QuizOption {
+    text: string;
+    is_correct: boolean;
+}
+
+interface QuizQuestion {
+    question: string;
+    options: QuizOption[];
+}
+
+interface TextJudgeEntry {
+    question: string;
+    answer: string;
+}
 
 interface Task {
     id: number;
@@ -11,6 +36,13 @@ interface Task {
     score: number;
     is_active: boolean;
     created_at: string;
+    pre_script?: string;
+    post_script?: string;
+    judge_type?: JudgeType;
+    ai_judges?: AiJudgeEntry[];
+    quiz_questions?: QuizQuestion[];
+    text_judges?: TextJudgeEntry[];
+    judge_script?: string;
     user?: {
         name: string;
     };
@@ -93,6 +125,132 @@ export default function ShowTask({ task }: ShowTaskProps) {
                                 </pre>
                             </div>
                         </div>
+
+                        {/* Pre-script Section */}
+                        {task.pre_script && (
+                            <div className="rounded-lg border">
+                                <div className="border-b p-4">
+                                    <h3 className="text-sm font-medium text-muted-foreground">Pre-script</h3>
+                                </div>
+                                <div className="p-0">
+                                    <pre className="max-h-[40vh] overflow-x-auto overflow-y-auto rounded-b-lg bg-muted p-4 text-xs leading-relaxed">
+                                        <code className="whitespace-pre-wrap">{task.pre_script.trim()}</code>
+                                    </pre>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Post-script Section */}
+                        {task.post_script && (
+                            <div className="rounded-lg border">
+                                <div className="border-b p-4">
+                                    <h3 className="text-sm font-medium text-muted-foreground">Post-script</h3>
+                                </div>
+                                <div className="p-0">
+                                    <pre className="max-h-[40vh] overflow-x-auto overflow-y-auto rounded-b-lg bg-muted p-4 text-xs leading-relaxed">
+                                        <code className="whitespace-pre-wrap">{task.post_script.trim()}</code>
+                                    </pre>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Judge Type and Configuration */}
+                        {task.judge_type && (
+                            <div className="rounded-lg border p-6">
+                                <div className="mb-4 flex items-center justify-between">
+                                    <h3 className="text-sm font-medium text-muted-foreground">Judge Configuration</h3>
+                                    <Badge variant="secondary">{task.judge_type}</Badge>
+                                </div>
+
+                                {/* AI Judge Display */}
+                                {task.judge_type === 'AiJudge' && task.ai_judges && task.ai_judges.length > 0 && (
+                                    <div className="space-y-4">
+                                        {task.ai_judges.map((entry, index) => (
+                                            <div key={index} className="rounded-md border bg-muted/30 p-4 space-y-3">
+                                                <div className="text-sm font-medium">AI Judge Entry {index + 1}</div>
+                                                <div className="space-y-2">
+                                                    <div>
+                                                        <span className="text-xs font-medium text-muted-foreground">Prompt:</span>
+                                                        <p className="mt-1 text-sm rounded bg-background p-2">{entry.prompt || 'N/A'}</p>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-xs font-medium text-muted-foreground">Question:</span>
+                                                        <p className="mt-1 text-sm rounded bg-background p-2">{entry.question || 'N/A'}</p>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-xs font-medium text-muted-foreground">Expected Answer:</span>
+                                                        <p className="mt-1 text-sm rounded bg-background p-2">{entry.answer || 'N/A'}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Quiz Judge Display */}
+                                {task.judge_type === 'QuizJudge' && task.quiz_questions && task.quiz_questions.length > 0 && (
+                                    <div className="space-y-4">
+                                        {task.quiz_questions.map((quiz, qIndex) => (
+                                            <div key={qIndex} className="rounded-md border bg-muted/30 p-4 space-y-3">
+                                                <div className="text-sm font-medium">Question {qIndex + 1}</div>
+                                                <div className="space-y-2">
+                                                    <div>
+                                                        <span className="text-xs font-medium text-muted-foreground">Question:</span>
+                                                        <p className="mt-1 text-sm rounded bg-background p-2">{quiz.question || 'N/A'}</p>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-xs font-medium text-muted-foreground">Options:</span>
+                                                        <div className="mt-2 space-y-2">
+                                                            {quiz.options.map((option, oIndex) => (
+                                                                <div key={oIndex} className="flex items-center gap-2 rounded bg-background p-2">
+                                                                    {option.is_correct && (
+                                                                        <CheckCircle2Icon className="h-4 w-4 text-green-600 dark:text-green-400 flex-shrink-0" />
+                                                                    )}
+                                                                    <span className={`text-sm ${option.is_correct ? 'font-medium text-green-600 dark:text-green-400' : ''}`}>
+                                                                        {option.text || 'N/A'}
+                                                                    </span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Text Judge Display */}
+                                {task.judge_type === 'TextJudge' && task.text_judges && task.text_judges.length > 0 && (
+                                    <div className="space-y-4">
+                                        {task.text_judges.map((entry, index) => (
+                                            <div key={index} className="rounded-md border bg-muted/30 p-4 space-y-3">
+                                                <div className="text-sm font-medium">Text Judge Entry {index + 1}</div>
+                                                <div className="space-y-2">
+                                                    <div>
+                                                        <span className="text-xs font-medium text-muted-foreground">Question:</span>
+                                                        <p className="mt-1 text-sm rounded bg-background p-2">{entry.question || 'N/A'}</p>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-xs font-medium text-muted-foreground">Expected Answer:</span>
+                                                        <p className="mt-1 text-sm rounded bg-background p-2">{entry.answer || 'N/A'}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Auto Judge Display */}
+                                {task.judge_type === 'AutoJudge' && task.judge_script && (
+                                    <div className="rounded-md border bg-muted/30 p-4">
+                                        <div className="text-sm font-medium mb-2">Judge Script</div>
+                                        <pre className="max-h-[40vh] overflow-x-auto overflow-y-auto rounded bg-background p-3 text-xs leading-relaxed">
+                                            <code className="whitespace-pre-wrap">{task.judge_script.trim()}</code>
+                                        </pre>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     <div className="space-y-6">

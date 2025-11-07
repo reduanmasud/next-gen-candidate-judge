@@ -44,4 +44,9 @@ class UserTaskAttempt extends Model
     {
         return $this->hasMany(ScriptJobRun::class, 'attempt_id');
     }
+
+    public function answers(): HasMany
+    {
+        return $this->hasMany(UserTaskAttemptAnswer::class);
+    }
 }
