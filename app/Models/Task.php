@@ -18,6 +18,28 @@ class Task extends Model
         'pre_script',
         'post_script',
         'judge_type',
+        'sandbox',
+        'allowssh',
+        'timer',
+        'warrning_timer',
+        'warning_timer_sound',
+    ];
+
+    protected $casts = [
+        'is_active' => 'boolean',
+        'sandbox' => 'boolean',
+        'allowssh' => 'boolean',
+        'timer' => 'integer',
+        'warrning_timer' => 'integer',
+        'warning_timer_sound' => 'boolean',
+        'score' => 'integer',
+        'server_id' => 'integer',
+    ];
+
+    protected $attributes = [
+        'timer' => null,
+        'warrning_timer' => null,
+        'warning_timer_sound' => false,
     ];
 
     public function user()

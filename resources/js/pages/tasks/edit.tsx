@@ -71,6 +71,11 @@ interface Task {
     quiz_questions?: QuizQuestion[];
     text_judges?: TextJudgeEntry[];
     judge_script?: string;
+    sandbox?: boolean;
+    allowssh?: boolean;
+    timer?: number;
+    warrning_timer?: number;
+    warning_timer_sound?: boolean;
 }
 
 interface EditTaskProps {
@@ -93,7 +98,7 @@ export default function EditTask({ task }: EditTaskProps) {
         },
     ];
 
-    const { data, setData, put, processing, errors } = useForm({
+    const { data, setData, processing, errors } = useForm({
         title: task.title,
         description: task.description,
         docker_compose_yaml: task.docker_compose_yaml,
@@ -106,11 +111,25 @@ export default function EditTask({ task }: EditTaskProps) {
         quiz_questions: task.quiz_questions || [],
         text_judges: task.text_judges || [],
         judge_script: task.judge_script || '',
+        sandbox: task.sandbox || false,
+        allowssh: task.allowssh || false,
+        timer: task.timer || 0,
+        warrning_timer: task.warrning_timer || 0,
+        warning_timer_sound: task.warning_timer_sound || false,
     });
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        put(`/tasks/${task.id}`);
+
+        // Prepare data - convert timer 0 to null to indicate "off"
+        const submitData = {
+            ...data,
+            timer: data.timer > 0 ? data.timer : null,
+            warrning_timer: (data.timer > 0 && data.warrning_timer > 0) ? data.warrning_timer : null,
+            warning_timer_sound: data.timer > 0 ? data.warning_timer_sound : false,
+        };
+
+        router.put(`/tasks/${task.id}`, submitData as any);
     };
 
     const handleDelete = () => {
@@ -269,7 +288,7 @@ export default function EditTask({ task }: EditTaskProps) {
                                         placeholder="Paste your docker-compose.yaml content here"
                                         rows={14}
                                         className="font-mono text-sm"
-                                        required
+                                        required={data.sandbox}
                                     />
                                     <p className="text-xs text-muted-foreground">
                                         Paste valid YAML. Use services, volumes, and networks as needed.
@@ -277,37 +296,41 @@ export default function EditTask({ task }: EditTaskProps) {
                                     <InputError message={errors.docker_compose_yaml} />
                                 </div>
 
-                                <div className="space-y-2">
-                                    <Label htmlFor="pre_script">Pre-script (Optional)</Label>
-                                    <Textarea
-                                        id="pre_script"
-                                        value={data.pre_script}
-                                        onChange={(e) => setData('pre_script', e.target.value)}
-                                        placeholder="Enter script to run before task execution"
-                                        rows={6}
-                                        className="font-mono text-sm"
-                                    />
-                                    <p className="text-xs text-muted-foreground">
-                                        Script that will be executed before the task starts.
-                                    </p>
-                                    <InputError message={errors.pre_script} />
-                                </div>
+                                {data.sandbox && (
+                                    <>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="pre_script">Pre-script (Optional)</Label>
+                                            <Textarea
+                                                id="pre_script"
+                                                value={data.pre_script}
+                                                onChange={(e) => setData('pre_script', e.target.value)}
+                                                placeholder="Enter script to run before task execution"
+                                                rows={6}
+                                                className="font-mono text-sm"
+                                            />
+                                            <p className="text-xs text-muted-foreground">
+                                                Script that will be executed before the task starts.
+                                            </p>
+                                            <InputError message={errors.pre_script} />
+                                        </div>
 
-                                <div className="space-y-2">
-                                    <Label htmlFor="post_script">Post-script (Optional)</Label>
-                                    <Textarea
-                                        id="post_script"
-                                        value={data.post_script}
-                                        onChange={(e) => setData('post_script', e.target.value)}
-                                        placeholder="Enter script to run after task execution"
-                                        rows={6}
-                                        className="font-mono text-sm"
-                                    />
-                                    <p className="text-xs text-muted-foreground">
-                                        Script that will be executed after the task completes.
-                                    </p>
-                                    <InputError message={errors.post_script} />
-                                </div>
+                                        <div className="space-y-2">
+                                            <Label htmlFor="post_script">Post-script (Optional)</Label>
+                                            <Textarea
+                                                id="post_script"
+                                                value={data.post_script}
+                                                onChange={(e) => setData('post_script', e.target.value)}
+                                                placeholder="Enter script to run after task execution"
+                                                rows={6}
+                                                className="font-mono text-sm"
+                                            />
+                                            <p className="text-xs text-muted-foreground">
+                                                Script that will be executed after the task completes.
+                                            </p>
+                                            <InputError message={errors.post_script} />
+                                        </div>
+                                    </>
+                                )}
 
                                 <Separator className="my-6" />
 
@@ -315,7 +338,13 @@ export default function EditTask({ task }: EditTaskProps) {
                                     <Label htmlFor="judge_type">Judge Type</Label>
                                     <Select
                                         value={data.judge_type}
-                                        onValueChange={(value) => setData('judge_type', value as JudgeType)}
+                                        onValueChange={(value) => {
+                                            // If AutoJudge is selected but sandbox is off, don't allow it
+                                            if (value === 'AutoJudge' && !data.sandbox) {
+                                                return;
+                                            }
+                                            setData('judge_type', value as JudgeType);
+                                        }}
                                     >
                                         <SelectTrigger id="judge_type">
                                             <SelectValue placeholder="Select a judge type" />
@@ -324,11 +353,14 @@ export default function EditTask({ task }: EditTaskProps) {
                                             <SelectItem value="AiJudge">AI Judge</SelectItem>
                                             <SelectItem value="QuizJudge">Quiz Judge</SelectItem>
                                             <SelectItem value="TextJudge">Text Judge</SelectItem>
-                                            <SelectItem value="AutoJudge">Auto Judge</SelectItem>
+                                            <SelectItem value="AutoJudge" disabled={!data.sandbox}>
+                                                Auto Judge {!data.sandbox && '(Requires Sandbox)'}
+                                            </SelectItem>
                                         </SelectContent>
                                     </Select>
                                     <p className="text-xs text-muted-foreground">
                                         Choose how this task will be evaluated.
+                                        {!data.sandbox && ' Enable Sandbox to use Auto Judge.'}
                                     </p>
                                     <InputError message={errors.judge_type} />
                                 </div>
@@ -608,6 +640,130 @@ export default function EditTask({ task }: EditTaskProps) {
                                         </span>
                                     </div>
                                     <InputError message={errors.is_active} />
+                                </div>
+
+                                <Separator />
+
+                                {/* Sandbox Section */}
+                                <div className="space-y-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="sandbox">Sandbox</Label>
+                                        <div className="flex items-center gap-3">
+                                            <Switch
+                                                id="sandbox"
+                                                checked={data.sandbox}
+                                                onCheckedChange={(checked) => {
+                                                    setData('sandbox', checked);
+                                                    // If turning off sandbox, also turn off allowssh and reset AutoJudge
+                                                    if (!checked) {
+                                                        setData('allowssh', false);
+                                                        if (data.judge_type === 'AutoJudge') {
+                                                            setData('judge_type', '');
+                                                        }
+                                                    }
+                                                }}
+                                            />
+                                            <span className="text-sm text-muted-foreground">
+                                                Enable sandbox environment
+                                            </span>
+                                        </div>
+                                        <InputError message={errors.sandbox} />
+                                    </div>
+
+                                    {data.sandbox && (
+                                        <div className="space-y-2 pl-4 border-l-2 border-muted">
+                                            <Label htmlFor="allowssh">Access SSH</Label>
+                                            <div className="flex items-center gap-3">
+                                                <Switch
+                                                    id="allowssh"
+                                                    checked={data.allowssh}
+                                                    onCheckedChange={(checked) => setData('allowssh', checked)}
+                                                />
+                                                <span className="text-sm text-muted-foreground">
+                                                    Allow SSH access to sandbox
+                                                </span>
+                                            </div>
+                                            <InputError message={errors.allowssh} />
+                                        </div>
+                                    )}
+                                </div>
+
+                                <Separator />
+
+                                {/* Timer Section */}
+                                <div className="space-y-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="timer_enabled">Timer</Label>
+                                        <div className="flex items-center gap-3">
+                                            <Switch
+                                                id="timer_enabled"
+                                                checked={data.timer > 0}
+                                                onCheckedChange={(checked) => {
+                                                    if (!checked) {
+                                                        setData('timer', 0);
+                                                        setData('warrning_timer', 0);
+                                                        setData('warning_timer_sound', false);
+                                                    } else {
+                                                        setData('timer', 60); // Default to 60 minutes
+                                                    }
+                                                }}
+                                            />
+                                            <span className="text-sm text-muted-foreground">
+                                                Enable task timer
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {data.timer > 0 && (
+                                        <div className="space-y-3 pl-4 border-l-2 border-muted">
+                                            <div className="space-y-2">
+                                                <Label htmlFor="timer">Timer Time (minutes)</Label>
+                                                <Input
+                                                    id="timer"
+                                                    type="number"
+                                                    min="1"
+                                                    value={data.timer}
+                                                    onChange={(e) => setData('timer', parseInt(e.target.value) || 0)}
+                                                    placeholder="Enter timer duration"
+                                                />
+                                                <p className="text-xs text-muted-foreground">
+                                                    Total time allowed for this task
+                                                </p>
+                                                <InputError message={errors.timer} />
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <Label htmlFor="warrning_timer">Warning Time (minutes)</Label>
+                                                <Input
+                                                    id="warrning_timer"
+                                                    type="number"
+                                                    min="0"
+                                                    value={data.warrning_timer}
+                                                    onChange={(e) => setData('warrning_timer', parseInt(e.target.value) || 0)}
+                                                    placeholder="Enter warning time"
+                                                />
+                                                <p className="text-xs text-muted-foreground">
+                                                    Show warning when this much time remains
+                                                </p>
+                                                <InputError message={errors.warrning_timer} />
+                                            </div>
+
+                                            <div className="space-y-2">
+                                                <Label htmlFor="warning_timer_sound">Warning Sound</Label>
+                                                <div className="flex items-center gap-3">
+                                                    <Switch
+                                                        id="warning_timer_sound"
+                                                        checked={data.warning_timer_sound}
+                                                        onCheckedChange={(checked) => setData('warning_timer_sound', checked)}
+                                                    />
+                                                    <span className="text-sm text-muted-foreground">
+                                                        Play sound on warning
+                                                    </span>
+                                                </div>
+                                                <InputError message={errors.warning_timer_sound} />
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <Separator />

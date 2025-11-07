@@ -43,6 +43,11 @@ interface Task {
     quiz_questions?: QuizQuestion[];
     text_judges?: TextJudgeEntry[];
     judge_script?: string;
+    sandbox?: boolean;
+    allowssh?: boolean;
+    timer?: number;
+    warrning_timer?: number;
+    warning_timer_sound?: boolean;
     user?: {
         name: string;
     };
@@ -274,6 +279,12 @@ export default function ShowTask({ task }: ShowTaskProps) {
                                     <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">{task.score}</span>
                                 </div>
                                 <div className="flex items-center justify-between">
+                                    <span className="text-muted-foreground">Judge Type</span>
+                                    <Badge variant="secondary" className="text-[10px]">
+                                        {task.judge_type || 'Not Set'}
+                                    </Badge>
+                                </div>
+                                <div className="flex items-center justify-between">
                                     <span className="text-muted-foreground">Owner</span>
                                     <span className="text-foreground/80">{task.user?.name || '—'}</span>
                                 </div>
@@ -281,6 +292,80 @@ export default function ShowTask({ task }: ShowTaskProps) {
                                     <span className="text-muted-foreground">Created</span>
                                     <span className="text-foreground/80">{new Date(task.created_at).toLocaleDateString()}</span>
                                 </div>
+                            </div>
+                        </div>
+
+                        {/* Sandbox Configuration */}
+                        <div className="rounded-lg border p-6">
+                            <h3 className="mb-4 text-sm font-medium text-muted-foreground">Sandbox Configuration</h3>
+                            <div className="space-y-3 text-sm">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-muted-foreground">Sandbox Enabled</span>
+                                    <Badge
+                                        variant={task.sandbox ? "default" : "secondary"}
+                                        className="text-[10px]"
+                                    >
+                                        {task.sandbox ? 'Yes' : 'No'}
+                                    </Badge>
+                                </div>
+                                {task.sandbox && (
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-muted-foreground">SSH Access</span>
+                                        <Badge
+                                            variant={task.allowssh ? "default" : "secondary"}
+                                            className="text-[10px]"
+                                        >
+                                            {task.allowssh ? 'Allowed' : 'Disabled'}
+                                        </Badge>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Timer Configuration */}
+                        <div className="rounded-lg border p-6">
+                            <h3 className="mb-4 text-sm font-medium text-muted-foreground">Timer Configuration</h3>
+                            <div className="space-y-3 text-sm">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-muted-foreground">Timer Enabled</span>
+                                    <Badge
+                                        variant={(task.timer !== null && task.timer !== undefined && task.timer > 0) ? "default" : "secondary"}
+                                        className="text-[10px]"
+                                    >
+                                        {(task.timer !== null && task.timer !== undefined && task.timer > 0) ? 'Yes' : 'No'}
+                                    </Badge>
+                                </div>
+                                {(task.timer !== null && task.timer !== undefined && task.timer > 0) && (
+                                    <>
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-muted-foreground">Timer Duration</span>
+                                            <span className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                                                {task.timer} min
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-muted-foreground">Warning Time</span>
+                                            {(task.warrning_timer !== null && task.warrning_timer !== undefined && task.warrning_timer > 0) ? (
+                                                <span className="rounded-md bg-orange-100 dark:bg-orange-900/30 px-2 py-0.5 text-xs font-medium text-orange-700 dark:text-orange-400">
+                                                    {task.warrning_timer} min
+                                                </span>
+                                            ) : (
+                                                <Badge variant="secondary" className="text-[10px]">
+                                                    No
+                                                </Badge>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-muted-foreground">Warning Sound</span>
+                                            <Badge
+                                                variant={task.warning_timer_sound ? "default" : "secondary"}
+                                                className="text-[10px]"
+                                            >
+                                                {task.warning_timer_sound ? 'Enabled' : 'Disabled'}
+                                            </Badge>
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         </div>
                     </div>
