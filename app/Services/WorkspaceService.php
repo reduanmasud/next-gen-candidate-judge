@@ -40,6 +40,9 @@ class WorkspaceService
         $password = $this->generatePassword();
         $workspacePath = '/home/' . $username . '/workspace_' . $attempt->id;
 
+        $attempt_name = bin2hex(random_bytes(4));
+        $domain = 'wpqa.online';
+
         // Update attempt with initial notes
         $attempt->notes = $this->appendToNotes(
             $attempt->notes,
@@ -52,6 +55,15 @@ class WorkspaceService
         $attempt->notes = $this->appendToNotes(
             $attempt->notes,
             sprintf("[%s] Workspace password: %s", now()->toDateTimeString(), $password)
+        );
+
+        $attempt->notes = $this->appendToNotes(
+            $attempt->notes,
+            sprintf("[%s] Workspace domain: %s", now()->toDateTimeString(), $domain)
+        );
+        $attempt->notes = $this->appendToNotes(
+            $attempt->notes,
+            sprintf("[%s] Workspace attempt name: %s", now()->toDateTimeString(), $attempt_name)
         );
         $attempt->save();
 
@@ -69,34 +81,19 @@ class WorkspaceService
             throw new RuntimeException('No server assigned to task');
         }
 
-        $sshPass = (string) ($server->ssh_password ?? '');
-        if ($sshPass === '') {
-            $attempt->update([
-                'status' => 'failed',
-                'completed_at' => now(),
-                'notes' => $this->appendToNotes(
-                    $attempt->notes,
-                    sprintf("[%s] Remote server SSH password is missing", now()->toDateTimeString())
-                ),
-            ]);
-            throw new RuntimeException('Remote server SSH password is missing. Edit the server and set ssh_password.');
-        }
+
 
         // Dispatch job chain
         Bus::chain([
-            new CreateUserJob($attempt, $server, $username, $password),
-            new SetDockerComposeJob($attempt, $server, $username, $workspacePath, $task->docker_compose_yaml),
+            new CreateUserJob($attempt, $server, $username, $password, $workspacePath),
+            new SetDockerComposeJob($attempt, $server, $username, $workspacePath, $this->yamlFillWithData($task->docker_compose_yaml, [
+                "attempt_name" => $attempt_name,
+                "domain" => $domain
+            ])),
             new StartDockerComposeJob($attempt, $server, $workspacePath),
-            new SetupCaddyServerJob($attempt, $server),
             new FinalizeWorkspaceJob($attempt),
         ])->onQueue('default')->dispatch();
 
-        Log::info('Workspace provisioning job chain dispatched', [
-            'task_id' => $task->id,
-            'user_id' => $user->id,
-            'attempt_id' => $attempt->id,
-            'username' => $username,
-        ]);
 
         return $attempt;
     }
@@ -107,6 +104,28 @@ class WorkspaceService
     {
         return Str::random(16);
     }
+
+    protected function yamlFillWithData(string $yaml, array $data): string
+    {
+
+        preg_match_all('/{{(\w+)}}/', $yaml, $matches);
+        $placeholders = $matches[1];
+
+        // If no placeholders found, return YAML as-is
+        if (empty($matches[1])) {
+            return $yaml;
+        }
+
+        foreach ($placeholders as $key) {
+            if (!array_key_exists($key, $data)) {
+                throw new \InvalidArgumentException("Missing value for placeholder: {{$key}}");
+            }
+            $yaml = str_replace('{{'.$key.'}}', $data[$key], $yaml);
+        }
+
+        return $yaml;
+    }
+
 
     // appendToNotes provided by AppendsNotes trait
 }

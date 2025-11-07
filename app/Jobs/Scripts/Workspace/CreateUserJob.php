@@ -2,31 +2,26 @@
 
 namespace App\Jobs\Scripts\Workspace;
 
-use App\Models\ScriptJobRun;
+
 use App\Models\Server;
 use App\Models\UserTaskAttempt;
 use App\Scripts\ScriptDescriptor;
 use App\Services\ScriptEngine;
-use App\Jobs\Scripts\Concerns\HandlesScriptExecution;
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Bus\Dispatchable;
-use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Log;
+use App\Traits\AppendAttemptNotes;
 use Throwable;
 
 class CreateUserJob extends BaseWorkspaceJob
 {
     
-
+    use AppendAttemptNotes;
     public function __construct(
         public UserTaskAttempt $attempt,
         public Server $server,
         public string $username,
         public string $password,
+        public string $workspacePath,
     ) {
-        //
+        parent::__construct();
     }
 
     public function handle(ScriptEngine $engine): void
@@ -36,6 +31,7 @@ class CreateUserJob extends BaseWorkspaceJob
             [
                 'username' => $this->username,
                 'password' => $this->password,
+                'workspacePath' => $this->workspacePath,
             ],
             'Create User Script for ' . $this->username
         );
@@ -45,7 +41,11 @@ class CreateUserJob extends BaseWorkspaceJob
         ]);
 
         try {
-            $result = $this->executeScriptAndRecord($script, $engine, $jobRun, $this->attempt, $this->server);
+            $result = $this->executeScriptAndRecord(
+                engine: $engine, 
+                jobRun: $jobRun, 
+                server: $this->server
+            );
 
             $this->appendAttemptNotes(
                 $this->attempt,
@@ -56,11 +56,6 @@ class CreateUserJob extends BaseWorkspaceJob
                 throw new \RuntimeException('Failed to create user: ' . ($result['error_output'] ?? $result['output'] ?? 'Unknown error'));
             }
 
-            Log::info('User created successfully', [
-                'attempt_id' => $this->attempt->id,
-                'username' => $this->username,
-                'job_run_id' => $jobRun->id,
-            ]);
 
         } catch (Throwable $e) {
             $jobRun->update([
@@ -77,12 +72,6 @@ class CreateUserJob extends BaseWorkspaceJob
                     $this->attempt->notes,
                     sprintf("[%s] Failed to create user: %s", now()->toDateTimeString(), $e->getMessage())
                 ),
-            ]);
-
-            Log::error('Create user job failed', [
-                'attempt_id' => $this->attempt->id,
-                'username' => $this->username,
-                'error' => $e->getMessage(),
             ]);
 
             throw $e; // Re-throw to stop the chain

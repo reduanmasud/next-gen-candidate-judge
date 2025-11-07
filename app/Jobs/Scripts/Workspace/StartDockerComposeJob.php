@@ -2,23 +2,25 @@
 
 namespace App\Jobs\Scripts\Workspace;
 
-use App\Models\ScriptJobRun;
 use App\Models\Server;
 use App\Models\UserTaskAttempt;
 use App\Scripts\ScriptDescriptor;
 use App\Services\ScriptEngine;
+use App\Traits\AppendAttemptNotes;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class StartDockerComposeJob extends BaseWorkspaceJob
 {
+    use AppendAttemptNotes;
+
     public function __construct(
         public UserTaskAttempt $attempt,
         public Server $server,
         public string $workspacePath,
     ) {
-        //
+        parent::__construct();
     }
 
     public function handle(ScriptEngine $engine): void
@@ -36,7 +38,11 @@ class StartDockerComposeJob extends BaseWorkspaceJob
         ]);
 
         try {
-            $result = $this->executeScriptAndRecord($script, $engine, $jobRun, $this->attempt, $this->server);
+            $result = $this->executeScriptAndRecord(
+                engine: $engine, 
+                jobRun: $jobRun, 
+                server: $this->server
+            );
 
             // Parse docker compose output to get container info
             $containers = $this->parseDockerComposeOutput($result['output'] ?? '');
@@ -67,13 +73,6 @@ class StartDockerComposeJob extends BaseWorkspaceJob
             if (!$result['successful']) {
                 throw new \RuntimeException('Failed to start docker compose: ' . ($result['error_output'] ?? $result['output'] ?? 'Unknown error'));
             }
-
-            Log::info('Docker compose started successfully', [
-                'attempt_id' => $this->attempt->id,
-                'workspace_path' => $this->workspacePath,
-                'container_id' => Arr::get($primaryContainer, 'ID'),
-                'job_run_id' => $jobRun->id,
-            ]);
 
 
             // Update job run metadata using HasMeta trait

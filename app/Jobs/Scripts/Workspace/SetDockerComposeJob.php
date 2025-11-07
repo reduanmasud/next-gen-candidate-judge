@@ -2,22 +2,16 @@
 
 namespace App\Jobs\Scripts\Workspace;
 
-use App\Models\ScriptJobRun;
 use App\Models\Server;
 use App\Models\UserTaskAttempt;
 use App\Scripts\ScriptDescriptor;
 use App\Services\ScriptEngine;
-use App\Jobs\Scripts\Concerns\HandlesScriptExecution;
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Bus\Dispatchable;
-use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Log;
+use App\Traits\AppendAttemptNotes;
 use Throwable;
 
 class SetDockerComposeJob extends BaseWorkspaceJob
 {
+    use AppendAttemptNotes;
 
     public function __construct(
         public UserTaskAttempt $attempt,
@@ -26,7 +20,7 @@ class SetDockerComposeJob extends BaseWorkspaceJob
         public string $workspacePath,
         public string $dockerComposeYaml,
     ) {
-        //
+        parent::__construct();
     }
 
     public function handle(ScriptEngine $engine): void
@@ -46,7 +40,11 @@ class SetDockerComposeJob extends BaseWorkspaceJob
         ]);
 
         try {
-            $result = $this->executeScriptAndRecord($script, $engine, $jobRun, $this->attempt, $this->server);
+            $result = $this->executeScriptAndRecord(
+                engine: $engine, 
+                jobRun: $jobRun, 
+                server: $this->server
+            );
 
             $this->appendAttemptNotes(
                 $this->attempt,
@@ -56,12 +54,6 @@ class SetDockerComposeJob extends BaseWorkspaceJob
             if (!$result['successful']) {
                 throw new \RuntimeException('Failed to set docker-compose.yaml: ' . ($result['error_output'] ?? $result['output'] ?? 'Unknown error'));
             }
-
-            Log::info('Docker compose YAML set successfully', [
-                'attempt_id' => $this->attempt->id,
-                'workspace_path' => $this->workspacePath,
-                'job_run_id' => $jobRun->id,
-            ]);
 
         } catch (Throwable $e) {
             $jobRun->update([
@@ -80,11 +72,6 @@ class SetDockerComposeJob extends BaseWorkspaceJob
                 ),
             ]);
 
-            Log::error('Set docker compose job failed', [
-                'attempt_id' => $this->attempt->id,
-                'workspace_path' => $this->workspacePath,
-                'error' => $e->getMessage(),
-            ]);
 
             throw $e; // Re-throw to stop the chain
         }

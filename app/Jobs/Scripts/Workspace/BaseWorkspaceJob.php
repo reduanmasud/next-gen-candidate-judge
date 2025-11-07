@@ -15,6 +15,11 @@ use Throwable;
  */
 abstract class BaseWorkspaceJob extends BaseScriptJob
 {
+
+    function __construct()
+    {
+        parent::__construct();
+    }
     /**
      * Default failed handler for workspace jobs.
      *
