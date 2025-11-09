@@ -34,10 +34,29 @@ class UserTaskController extends Controller
                 $query->where('user_id', $user->id);
             }])
             ->get()
-            ->map(function ($task) {
+            ->map(function ($task) use ($user) {
                 $latestAttempt = $task->attempts->first();
                 $isStarted = in_array(optional($latestAttempt)->status, ['pending', 'running'], true);
                 $isLocked = $task->lockedUsers->isNotEmpty();
+
+                // Count total attempts for this user and task
+                $attemptCount = UserTaskAttempt::where('user_id', $user->id)
+                    ->where('task_id', $task->id)
+                    ->count();
+
+                // Check if task was completed successfully (all questions correct)
+                // A task is completed successfully if:
+                // 1. Latest attempt status is 'completed'
+                // 2. The score equals the maximum possible score for that attempt
+                $isCompletedSuccessfully = false;
+                if (optional($latestAttempt)->status === 'completed') {
+                    $attemptNumber = UserTaskAttempt::where('user_id', $user->id)
+                        ->where('task_id', $task->id)
+                        ->where('id', '<=', $latestAttempt->id)
+                        ->count();
+                    $maxPossibleScore = $this->calculateMaxScore($task->score, $attemptNumber);
+                    $isCompletedSuccessfully = $latestAttempt->score >= $maxPossibleScore;
+                }
 
                 return [
                     'id' => $task->id,
@@ -47,7 +66,11 @@ class UserTaskController extends Controller
                     'is_started' => $isStarted,
                     'is_completed' => optional($latestAttempt)->status === 'completed',
                     'is_locked' => $isLocked,
+                    'is_completed_successfully' => $isCompletedSuccessfully,
                     'attempt_id' => optional($latestAttempt)->id,
+                    'attempt_count' => $attemptCount,
+                    'sandbox' => $task->sandbox,
+                    'allowssh' => $task->allowssh,
                 ];
             });
 
