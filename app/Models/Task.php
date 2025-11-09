@@ -85,4 +85,20 @@ class Task extends Model
     {
         return $this->hasOne(AutoJudge::class);
     }
+
+    public function lockedUsers(): HasMany
+    {
+        return $this->hasMany(TaskUserLock::class);
+    }
+
+    /**
+     * Check if a task is locked for a specific user.
+     *
+     * @param User $user
+     * @return bool
+     */
+    public function isLockedForUser(User $user): bool
+    {
+        return $this->lockedUsers()->where('user_id', $user->id)->exists();
+    }
 }

@@ -11,6 +11,8 @@ import { useMemo, useState, useEffect } from 'react';
 import { SharedData } from '@/types';
 import { Clock, Key, Terminal } from 'lucide-react';
 import WorkspaceProgressTracker from '@/components/WorkspaceProgressTracker';
+import SubmissionResultModal from '@/components/SubmissionResultModal';
+import axios from 'axios';
 
 type JudgeType = 'none' | 'AiJudge' | 'QuizJudge' | 'TextJudge' | 'AutoJudge' | null;
 
@@ -102,6 +104,11 @@ export default function UserTaskWorkspace({ task, attempt, workspace, metadata, 
     const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({});
     const [textAnswers, setTextAnswers] = useState<Record<number, string>>({});
 
+    // Result modal state
+    const [showResultModal, setShowResultModal] = useState(false);
+    const [submissionResult, setSubmissionResult] = useState<any>(null);
+    const [isTaskLocked, setIsTaskLocked] = useState(false);
+
     // Poll for status updates when attempt is pending
     useEffect(() => {
         if (attempt.status === 'pending') {
@@ -189,7 +196,7 @@ export default function UserTaskWorkspace({ task, attempt, workspace, metadata, 
         );
     };
 
-    const handleSubmitEvaluation = () => {
+    const handleSubmitEvaluation = async () => {
         if (isSubmitting) {
             return;
         }
@@ -206,14 +213,23 @@ export default function UserTaskWorkspace({ task, attempt, workspace, metadata, 
             submissionData = { answers: textAnswers };
         }
 
-        // TODO: Implement actual submission endpoint
-        router.post(
-            `/my-tasks/attempts/${attempt.id}/submit`,
-            submissionData,
-            {
-                onFinish: () => setIsSubmitting(false),
-            },
-        );
+        try {
+            const response = await axios.post(
+                `/my-tasks/attempts/${attempt.id}/submit`,
+                submissionData
+            );
+
+            if (response.data.success) {
+                setSubmissionResult(response.data.result);
+                setIsTaskLocked(response.data.locked);
+                setShowResultModal(true);
+            }
+        } catch (error: any) {
+            console.error('Submission error:', error);
+            alert(error.response?.data?.error || 'Failed to submit answers');
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (
@@ -458,6 +474,19 @@ export default function UserTaskWorkspace({ task, attempt, workspace, metadata, 
                     </>
                 )}
             </div>
+
+            {/* Submission Result Modal */}
+            <SubmissionResultModal
+                open={showResultModal}
+                onClose={() => {
+                    setShowResultModal(false);
+                    // Reload the page to show updated attempt status
+                    router.reload();
+                }}
+                result={submissionResult}
+                locked={isTaskLocked}
+                taskScore={task.score}
+            />
         </AppLayout>
     );
 

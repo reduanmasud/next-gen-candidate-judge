@@ -2,7 +2,7 @@ import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
 import { Head, router } from '@inertiajs/react';
 import { useMemo, useState } from 'react';
-import { PlayIcon } from 'lucide-react';
+import { PlayIcon, Lock } from 'lucide-react';
 import { Spinner } from '@/components/ui/spinner';
 
 interface Task {
@@ -12,6 +12,7 @@ interface Task {
     score: number;
     is_started: boolean;
     is_completed: boolean;
+    is_locked: boolean;
     attempt_id: number | null;
 }
 
@@ -28,7 +29,7 @@ export default function UserTasksIndex({ tasks }: UserTasksIndexProps) {
     );
 
     const handleStart = (task: Task) => {
-        if (preparingTaskId !== null) {
+        if (preparingTaskId !== null || task.is_locked) {
             return;
         }
 
@@ -84,14 +85,25 @@ export default function UserTasksIndex({ tasks }: UserTasksIndexProps) {
                                 </p>
 
                                 <div className="pt-2">
-                                    <Button
-                                        className="w-full"
-                                        onClick={() => handleStart(task)}
-                                        disabled={preparingTaskId !== null}
-                                    >
-                                        <PlayIcon className="mr-2 h-4 w-4" />
-                                        {task.is_started ? 'Open Workspace' : 'Start Task'}
-                                    </Button>
+                                    {task.is_locked ? (
+                                        <Button
+                                            className="w-full"
+                                            disabled
+                                            variant="destructive"
+                                        >
+                                            <Lock className="mr-2 h-4 w-4" />
+                                            Task Locked
+                                        </Button>
+                                    ) : (
+                                        <Button
+                                            className="w-full"
+                                            onClick={() => handleStart(task)}
+                                            disabled={preparingTaskId !== null}
+                                        >
+                                            <PlayIcon className="mr-2 h-4 w-4" />
+                                            {task.is_started ? 'Open Workspace' : 'Start Task'}
+                                        </Button>
+                                    )}
                                 </div>
                             </div>
 

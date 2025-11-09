@@ -3,10 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Task;
+use App\Models\TaskUserLock;
 use App\Models\UserTaskAttempt;
+use App\Models\UserTaskAttemptAnswer;
+use App\Services\JudgeServices\TextJudgeService;
 use App\Services\WorkspaceService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Inertia\Response;
 use Inertia\Inertia;
 
@@ -26,10 +30,14 @@ class UserTaskController extends Controller
             ->with(['attempts' => function ($query) use ($user) {
                 $query->where('user_id', $user->id)->latest();
             }])
+            ->with(['lockedUsers' => function ($query) use ($user) {
+                $query->where('user_id', $user->id);
+            }])
             ->get()
             ->map(function ($task) {
                 $latestAttempt = $task->attempts->first();
                 $isStarted = in_array(optional($latestAttempt)->status, ['pending', 'running'], true);
+                $isLocked = $task->lockedUsers->isNotEmpty();
 
                 return [
                     'id' => $task->id,
@@ -38,6 +46,7 @@ class UserTaskController extends Controller
                     'score' => $task->score,
                     'is_started' => $isStarted,
                     'is_completed' => optional($latestAttempt)->status === 'completed',
+                    'is_locked' => $isLocked,
                     'attempt_id' => optional($latestAttempt)->id,
                 ];
             });
@@ -50,6 +59,12 @@ class UserTaskController extends Controller
     public function start(Request $request, Task $task): RedirectResponse
     {
         $user = $request->user();
+
+        // Check if task is locked for this user
+        if ($task->isLockedForUser($user)) {
+            return redirect()->route('user-tasks.index')
+                ->with('error', 'This task is locked for you. You cannot attempt it again.');
+        }
 
         // Load the server relationship if it exists
         $task->loadMissing('server');
@@ -221,5 +236,125 @@ class UserTaskController extends Controller
             'metadata' => $metadata,
             'current_step' => $attempt->getMeta('current_step'),
         ]);
+    }
+
+    /**
+     * Submit and evaluate answers for a task attempt.
+     */
+    public function submit(Request $request, UserTaskAttempt $attempt): JsonResponse
+    {
+        $user = $request->user();
+
+        // Verify the attempt belongs to the user
+        if ($attempt->user_id !== $user->id) {
+            abort(403, 'Unauthorized');
+        }
+
+        // Verify the attempt is still in progress
+        if ($attempt->status === 'completed') {
+            return response()->json([
+                'error' => 'This attempt has already been completed.',
+            ], 400);
+        }
+
+        $task = $attempt->task;
+
+        // Verify the task is not locked for this user
+        if ($task->isLockedForUser($user)) {
+            return response()->json([
+                'error' => 'This task is locked for you.',
+            ], 403);
+        }
+
+        // Validate request based on judge type
+        $validated = $request->validate([
+            'answers' => 'required|array',
+        ]);
+
+        $answers = $validated['answers'];
+
+        // Evaluate based on judge type
+        if ($task->judge_type === 'TextJudge') {
+            $judgeService = new TextJudgeService();
+            $result = $judgeService->evaluate($task, $attempt, $answers);
+
+            // Save the attempt answer
+            UserTaskAttemptAnswer::create([
+                'user_task_attempt_id' => $attempt->id,
+                'answers' => json_encode($answers),
+                'score' => $result['score'],
+                'notes' => $this->formatResultNotes($result),
+            ]);
+
+            // Update the attempt
+            $attempt->update([
+                'status' => 'completed',
+                'completed_at' => now(),
+                'score' => $result['score'],
+            ]);
+
+            // Add note to attempt with scoring details
+            $noteMessage = sprintf(
+                "Attempt #%d completed. Score: %.2f/%.2f (%.1f%%). Correct answers: %d/%d.",
+                $result['attempt_number'],
+                $result['score'],
+                $result['max_score'],
+                ($result['score'] / $task->score) * 100,
+                $result['correct_count'],
+                $result['total_count']
+            );
+            $attempt->appendNote($noteMessage);
+
+            // Check if task should be locked
+            if (!$result['passed']) {
+                TaskUserLock::create([
+                    'task_id' => $task->id,
+                    'user_id' => $user->id,
+                    'reason' => sprintf(
+                        'Task locked due to low score (%.2f points, required %.2f points)',
+                        $result['score'],
+                        $task->score * 0.8
+                    ),
+                ]);
+
+                $attempt->appendNote('Task has been locked due to score below 80% threshold.');
+            }
+
+            return response()->json([
+                'success' => true,
+                'result' => $result,
+                'locked' => !$result['passed'],
+            ]);
+        }
+
+        return response()->json([
+            'error' => 'Judge type not supported yet.',
+        ], 400);
+    }
+
+    /**
+     * Format the evaluation result into a readable note.
+     */
+    protected function formatResultNotes(array $result): string
+    {
+        $notes = "Evaluation Results:\n\n";
+
+        foreach ($result['details'] as $index => $detail) {
+            $status = $detail['is_correct'] ? '✓ Correct' : '✗ Incorrect';
+            $notes .= sprintf(
+                "Question %d: %s\n",
+                $index + 1,
+                $status
+            );
+        }
+
+        $notes .= sprintf(
+            "\nTotal Score: %.2f/%.2f (%.1f%%)\n",
+            $result['score'],
+            $result['max_score'],
+            ($result['correct_count'] / $result['total_count']) * 100
+        );
+
+        return $notes;
     }
 }
