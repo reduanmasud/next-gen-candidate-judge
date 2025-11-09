@@ -219,6 +219,7 @@ class UserTaskController extends Controller
             'container_name' => $attempt->container_name,
             'container_port' => $attempt->container_port,
             'metadata' => $metadata,
+            'current_step' => $attempt->getMeta('current_step'),
         ]);
     }
 }

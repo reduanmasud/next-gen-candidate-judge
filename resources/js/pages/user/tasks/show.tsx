@@ -10,6 +10,7 @@ import { Head, router, usePage } from '@inertiajs/react';
 import { useMemo, useState, useEffect } from 'react';
 import { SharedData } from '@/types';
 import { Clock, Key, Terminal } from 'lucide-react';
+import WorkspaceProgressTracker from '@/components/WorkspaceProgressTracker';
 
 type JudgeType = 'none' | 'AiJudge' | 'QuizJudge' | 'TextJudge' | 'AutoJudge' | null;
 
@@ -47,6 +48,7 @@ interface MetadataResource {
     containers?: any[];
     primary_container?: any;
     primary_container_name?: string;
+    current_step?: string;
 }
 
 interface WorkspaceResource {
@@ -221,9 +223,8 @@ export default function UserTaskWorkspace({ task, attempt, workspace, metadata, 
             <div className="flex h-full flex-1 flex-col gap-4 overflow-auto p-4">
                 {attempt.status === 'pending' ? (
                     <div className="flex h-full w-full items-center justify-center">
-                        <div className="flex w-full max-w-md flex-col items-center gap-4 rounded-lg border bg-card px-8 py-6 text-center shadow-lg">
-                            <Spinner className="h-8 w-8" />
-                            <div>
+                        <div className="flex w-full max-w-lg flex-col gap-6 rounded-lg border bg-card px-8 py-8 shadow-lg">
+                            <div className="text-center">
                                 <p className="text-xl font-bold mb-2">
                                     {task.title}
                                 </p>
@@ -234,6 +235,13 @@ export default function UserTaskWorkspace({ task, attempt, workspace, metadata, 
                                     Setting up Docker environment. This may take a moment.
                                 </p>
                             </div>
+
+                            <Separator />
+
+                            <WorkspaceProgressTracker
+                                currentStep={metadata.current_step || null}
+                                allowSsh={task.allowssh}
+                            />
                         </div>
                     </div>
                 ) : (

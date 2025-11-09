@@ -20,6 +20,9 @@ class FinalizeWorkspaceJob extends BaseWorkspaceJob
         $this->attempt = UserTaskAttempt::find($this->attemptId);
 
         try {
+            // Update progress: job started
+            $this->attempt->addMeta(['current_step' => 'finalizing_workspace']);
+
             if ($this->attempt->status === 'pending') {
                 $this->attempt->update([
                     'status' => 'running',
@@ -28,6 +31,8 @@ class FinalizeWorkspaceJob extends BaseWorkspaceJob
                 ]);
                 $this->attempt->appendNote("Workspace provisioning completed successfully");
 
+                // Update progress: all jobs completed
+                $this->attempt->addMeta(['current_step' => 'completed']);
             }
 
         } catch (Throwable $e) {
@@ -35,6 +40,7 @@ class FinalizeWorkspaceJob extends BaseWorkspaceJob
                 'status' => 'failed',
                 'failed_at' => now(),
             ]);
+            $this->attempt->addMeta(['current_step' => 'failed', 'failed_step' => 'finalizing_workspace']);
             $this->attempt->appendNote("Failed to finalize workspace: ".$e->getMessage());
 
             // Don't throw - we don't want to fail the entire chain just because finalization failed

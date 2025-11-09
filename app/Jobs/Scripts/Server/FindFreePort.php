@@ -28,11 +28,14 @@ class FindFreePort extends BaseScriptJob
         $this->server = Server::find($this->serverId);
         $this->attempt = UserTaskAttempt::find($this->attemptId);
 
+        // Update progress: job started
+        $this->attempt->addMeta(['current_step' => 'finding_free_port']);
+
         $this->attempt->appendNote("Finding free port for SSH");
 
         try {
 
-            if(!$this->server) 
+            if(!$this->server)
             {
                 throw new \RuntimeException('Server not found');
             }
@@ -41,7 +44,7 @@ class FindFreePort extends BaseScriptJob
                 "workspace_path" => $this->attempt->getMeta('workspace_path'),
             ], 'Find Free SSH Port '.$this->server->ip_address);
 
-        
+
 
             [$jobRun, $result] = ScriptJobRun::createAndExecute(
                 script: $script,
@@ -55,7 +58,7 @@ class FindFreePort extends BaseScriptJob
                 ]
             );
 
-            
+
 
             $data = $this->extractJsonOutput($result['output'] ?? '');
             $this->attempt->appendNote("Found free port for SSH: ".$data['ssh_port']);
@@ -66,11 +69,15 @@ class FindFreePort extends BaseScriptJob
             ]);
             $this->attempt->addMeta(['ssh_port' => $data['ssh_port']]);
 
+            // Update progress: job completed
+            $this->attempt->addMeta(['current_step' => 'finding_free_port_completed']);
+
         } catch (Throwable $e) {
             $this->attempt->update([
                 'status' => 'failed',
                 'failed_at' => now(),
             ]);
+            $this->attempt->addMeta(['current_step' => 'failed', 'failed_step' => 'finding_free_port']);
             $this->attempt->appendNote("Failed to find free port: ".$e->getMessage());
 
             throw $e; // Re-throw to stop the chain

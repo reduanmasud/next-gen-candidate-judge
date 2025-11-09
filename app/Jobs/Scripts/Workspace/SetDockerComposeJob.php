@@ -25,6 +25,8 @@ class SetDockerComposeJob extends BaseWorkspaceJob
         $this->attempt = UserTaskAttempt::find($this->attemptId);
 
         try {
+            // Update progress: job started
+            $this->attempt->addMeta(['current_step' => 'setting_docker_compose']);
 
             $script = ScriptDescriptor::make(
                 'scripts.set_docker_compose_yaml',
@@ -40,7 +42,7 @@ class SetDockerComposeJob extends BaseWorkspaceJob
 
             $this->attempt->appendNote("Setting docker-compose.yaml for workspace");
 
-        
+
 
             [$jobRun, $result] = ScriptJobRun::createAndExecute(
                 script: $script,
@@ -58,6 +60,9 @@ class SetDockerComposeJob extends BaseWorkspaceJob
 
             $this->attempt->appendNote("Set docker-compose.yaml for workspace");
 
+            // Update progress: job completed
+            $this->attempt->addMeta(['current_step' => 'setting_docker_compose_completed']);
+
         } catch (Throwable $e) {
 
 
@@ -65,6 +70,7 @@ class SetDockerComposeJob extends BaseWorkspaceJob
                 'status' => 'failed',
                 'failed_at' => now(),
             ]);
+            $this->attempt->addMeta(['current_step' => 'failed', 'failed_step' => 'setting_docker_compose']);
             $this->attempt->appendNote("Failed to set docker-compose.yaml: ".$e->getMessage());
 
             throw $e; // Re-throw to stop the chain

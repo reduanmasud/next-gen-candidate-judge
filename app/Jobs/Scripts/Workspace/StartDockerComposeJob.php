@@ -29,6 +29,9 @@ class StartDockerComposeJob extends BaseWorkspaceJob
         $this->server = Server::find($this->serverId);
 
         try {
+            // Update progress: job started
+            $this->attempt->addMeta(['current_step' => 'starting_docker_compose']);
+
             $script = ScriptDescriptor::make(
                 'scripts.start_docker_compose',
                 [
@@ -40,7 +43,7 @@ class StartDockerComposeJob extends BaseWorkspaceJob
 
             $this->attempt->appendNote("Starting docker compose for workspace");
 
-        
+
 
             [$jobRun, $result] = ScriptJobRun::createAndExecute(
                 script: $script,
@@ -87,13 +90,16 @@ class StartDockerComposeJob extends BaseWorkspaceJob
                 'primary_container' => $primaryContainer,
                 'primary_container_name' => Arr::get($primaryContainer, 'Name'),
             ]);
-            
+
+            // Update progress: job completed
+            $this->attempt->addMeta(['current_step' => 'starting_docker_compose_completed']);
 
         } catch (Throwable $e) {
             $this->attempt->update([
                 'status' => 'failed',
                 'failed_at' => now(),
             ]);
+            $this->attempt->addMeta(['current_step' => 'failed', 'failed_step' => 'starting_docker_compose']);
             $this->attempt->appendNote("Failed to start docker compose: ".$e->getMessage());
 
 

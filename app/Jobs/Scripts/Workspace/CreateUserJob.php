@@ -28,6 +28,9 @@ class CreateUserJob extends BaseWorkspaceJob
         $this->server = Server::find($this->serverId);
 
         try {
+            // Update progress: job started
+            $this->attempt->addMeta(['current_step' => 'creating_user']);
+
             $script = ScriptDescriptor::make(
                 'scripts.create_user',
                 [
@@ -40,7 +43,7 @@ class CreateUserJob extends BaseWorkspaceJob
 
             $this->attempt->appendNote("Creating user: ".$this->attempt->username);
 
-        
+
             [$jobRun, $result] = ScriptJobRun::createAndExecute(
                 script: $script,
                 engine: $engine,
@@ -54,7 +57,9 @@ class CreateUserJob extends BaseWorkspaceJob
             );
 
             $this->attempt->appendNote("Created user: ".$this->attempt->username);
-            
+
+            // Update progress: job completed
+            $this->attempt->addMeta(['current_step' => 'creating_user_completed']);
 
         } catch (Throwable $e) {
 
@@ -62,6 +67,7 @@ class CreateUserJob extends BaseWorkspaceJob
                 'status' => 'failed',
                 'failed_at' => now(),
             ]);
+            $this->attempt->addMeta(['current_step' => 'failed', 'failed_step' => 'creating_user']);
             $this->attempt->appendNote("Failed to create user: ".$e->getMessage());
 
             throw $e; // Re-throw to stop the chain

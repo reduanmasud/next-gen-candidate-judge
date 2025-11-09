@@ -27,6 +27,9 @@ class SetSshAccessToContainerJob extends BaseWorkspaceJob
         $this->server = Server::find($this->serverId);
 
         try {
+            // Update progress: job started
+            $this->attempt->addMeta(['current_step' => 'setting_ssh_access']);
+
             $script = ScriptDescriptor::make(
                 'scripts.set_ssh_access_to_container',
                 [
@@ -36,11 +39,11 @@ class SetSshAccessToContainerJob extends BaseWorkspaceJob
                     'workspace_path' => $this->attempt->getMeta('workspace_path'),
                 ],
                 'Set SSH Access to Container Script for ' . $this->attempt->user->name
-            );  
+            );
 
             $this->attempt->appendNote("Setting SSH access to container");
 
-        
+
 
             [$jobRun, $result] = ScriptJobRun::createAndExecute(
                 script: $script,
@@ -57,6 +60,9 @@ class SetSshAccessToContainerJob extends BaseWorkspaceJob
 
             $this->attempt->appendNote("Set SSH access to container: ".$this->attempt->container_name);
 
+            // Update progress: job completed
+            $this->attempt->addMeta(['current_step' => 'setting_ssh_access_completed']);
+
         } catch (Throwable $e) {
 
             $this->attempt->update([
@@ -64,6 +70,7 @@ class SetSshAccessToContainerJob extends BaseWorkspaceJob
                 'failed_at' => now(),
             ]);
 
+            $this->attempt->addMeta(['current_step' => 'failed', 'failed_step' => 'setting_ssh_access']);
             $this->attempt->appendNote("Failed to set SSH access to container: ".$e->getMessage());
 
             throw $e; // Re-throw to stop the chain
