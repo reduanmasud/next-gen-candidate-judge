@@ -32,6 +32,7 @@ class SetSshAccessToContainerJob extends BaseWorkspaceJob
         $script = ScriptDescriptor::make(
             'scripts.set_ssh_access_to_container',
             [
+                'username' => $this->attempt->getMeta('username'),
                 'container_name' => $this->attempt->container_name,
                 'domain' => $this->attempt->getMeta('workspace_domain'),
                 'workspacePath' => $this->attempt->getMeta('workspace_path'),
@@ -40,6 +41,7 @@ class SetSshAccessToContainerJob extends BaseWorkspaceJob
         );  
 
         $jobRun = $this->createScriptJobRun($script, $this->attempt, $this->server, [
+            'username' => $this->attempt->getMeta('username'),
             'container_name' => $this->attempt->container_name,
             'workspace_domain' => $this->attempt->getMeta('workspace_domain'),
             'workspace_path' => $this->attempt->getMeta('workspace_path'),

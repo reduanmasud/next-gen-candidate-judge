@@ -26,6 +26,7 @@ class DeleteWorkspaceJob extends BaseWorkspaceJob
                 'username' => "user_".$this->attempt->id,
                 'container_name' => $this->attempt->container_name,
                 'allowssh' => $this->attempt->task->allowssh,
+                'workspacePath' => $this->attempt->getMeta('workspace_path'),
             ],
             'Delete Workspace Script for ' . $this->attempt->user->name
         );

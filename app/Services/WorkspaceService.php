@@ -46,6 +46,11 @@ class WorkspaceService
             $hostUsername = "user_".$attempt->id;
             $hostPassword = $this->generatePassword();
 
+            $attempt->addMeta([
+                'username' => $hostUsername,
+                'password' => $hostPassword,
+            ]);
+
             $workspacePath = '/home/' . $hostUsername . '/workspace_'. $attempt->id;
 
             $domain = 'wpqa.online'; // TODO: Later send it to Server Model
