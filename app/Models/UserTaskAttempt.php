@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class UserTaskAttempt extends Model
 {
     use HasMeta;
+    
     protected $fillable = [
         'user_id',
         'task_id',

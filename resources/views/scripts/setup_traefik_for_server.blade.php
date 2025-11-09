@@ -5,7 +5,8 @@ echo "Setting up Traefik server for user..."
 # CONFIGURATION
 # ======================
 TRAEFIK_DIR="/opt/traefik"
-CLOUDFLARE_EMAIL="reduanmasudcse@gmail.com"       # your Cloudflare account email
+DYNAMIC_DIR="/opt/traefik/dynamic"
+CLOUDFLARE_EMAIL="reduanmasudcse@gmail.com"       # Will take it to Database later
 CLOUDFLARE_API_TOKEN="{{ $cloudflare_api_token }}" # create from Cloudflare dashboard
 DOMAIN="wpqa.online"
 TRAEFIK_NETWORK="web"
@@ -15,7 +16,7 @@ TRAEFIK_NETWORK="web"
 # ======================
 
 echo "[+] Creating Traefik directory..."
-sudo mkdir -p $TRAEFIK_DIR/{letsencrypt,config}
+sudo mkdir -p $TRAEFIK_DIR/{letsencrypt,config,dynamic}
 sudo chmod -R 755 $TRAEFIK_DIR
 
 # ----------------------
@@ -38,6 +39,9 @@ services:
       - "--certificatesresolvers.cloudflare.acme.email=$CLOUDFLARE_EMAIL"
       - "--certificatesresolvers.cloudflare.acme.storage=/letsencrypt/acme.json"
       - "--certificatesresolvers.cloudflare.acme.dnschallenge.resolvers=1.1.1.1:53"
+      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--providers.file.watch=true"
+
     environment:
       - CF_API_EMAIL=$CLOUDFLARE_EMAIL
       - CF_DNS_API_TOKEN=$CLOUDFLARE_API_TOKEN
@@ -48,6 +52,7 @@ services:
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "./letsencrypt:/letsencrypt"
+      - "./dynamic:/etc/traefik/dynamic"
     networks:
       - $TRAEFIK_NETWORK
 

@@ -16,23 +16,27 @@ class FinalizeWorkspaceJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
     use AppendsNotes;
+    public UserTaskAttempt $attempt;
 
     public $timeout = 60;
     public $tries = 1;
 
     public function __construct(
-        public UserTaskAttempt $attempt,
+        public Int $attemptId,
     ) {
         //
     }
 
     public function handle(): void
     {
+        $this->attempt = UserTaskAttempt::find($this->attemptId);
+
         try {
             // Only finalize if the attempt is still in running status
             // (it might have been marked as failed by a previous job in the chain)
-            if ($this->attempt->status === 'running') {
+            if ($this->attempt->status === 'pending') {
                 $this->attempt->update([
+                    'status' => 'running',
                     'completed_at' => now(),
                     'notes' => $this->appendToNotes(
                         $this->attempt->notes,

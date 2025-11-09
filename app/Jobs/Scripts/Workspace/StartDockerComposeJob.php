@@ -14,10 +14,12 @@ use Throwable;
 class StartDockerComposeJob extends BaseWorkspaceJob
 {
     use AppendAttemptNotes;
+    public UserTaskAttempt $attempt;
+    public Server $server;
 
     public function __construct(
-        public UserTaskAttempt $attempt,
-        public Server $server,
+        public Int $attemptId,
+        public Int $serverId,
         public string $workspacePath,
     ) {
         parent::__construct();
@@ -25,16 +27,21 @@ class StartDockerComposeJob extends BaseWorkspaceJob
 
     public function handle(ScriptEngine $engine): void
     {
+        $this->attempt = UserTaskAttempt::find($this->attemptId);
+        $this->server = Server::find($this->serverId);
+
         $script = ScriptDescriptor::make(
             'scripts.start_docker_compose',
             [
                 'workspacePath' => $this->workspacePath,
+                'task' => $this->attempt->task,
             ],
             'Start Docker Compose Script'
         );
 
         $jobRun = $this->createScriptJobRun($script, $this->attempt, $this->server, [
             'workspace_path' => $this->workspacePath,
+            'attempt_id' => $this->attempt->id,
         ]);
 
         try {

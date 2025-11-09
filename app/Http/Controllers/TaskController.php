@@ -10,6 +10,7 @@ use App\Models\AutoJudge;
 use App\Models\QuizQuestionAnswer;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
 use Illuminate\Support\Facades\DB;
@@ -85,7 +86,7 @@ class TaskController extends Controller
         DB::beginTransaction();
         try {
             $task = new Task($validated);
-            $task->user_id = auth()->user()->id;
+            $task->user_id = Auth::user()->id;
             $task->save();
 
             // Handle judge configurations based on judge_type

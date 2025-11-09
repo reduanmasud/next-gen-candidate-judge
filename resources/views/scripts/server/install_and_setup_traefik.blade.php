@@ -15,7 +15,10 @@ TRAEFIK_NETWORK="web"
 # ======================
 
 echo "[+] Creating Traefik directory..."
-sudo mkdir -p $TRAEFIK_DIR/{letsencrypt,config}
+sudo mkdir -p $TRAEFIK_DIR/letsencrypt
+sudo mkdir -p $TRAEFIK_DIR/config
+sudo mkdir -p $TRAEFIK_DIR/dynamic
+sudo mkdir -p $TRAEFIK_DIR/static
 sudo chmod -R 755 $TRAEFIK_DIR
 
 # ----------------------
@@ -30,6 +33,7 @@ services:
     command:
       - "--api.dashboard=true"
       - "--providers.docker=true"
+      - "--api.insecure=true"
       - "--providers.docker.exposedbydefault=false"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
@@ -38,6 +42,9 @@ services:
       - "--certificatesresolvers.cloudflare.acme.email=$CLOUDFLARE_EMAIL"
       - "--certificatesresolvers.cloudflare.acme.storage=/letsencrypt/acme.json"
       - "--certificatesresolvers.cloudflare.acme.dnschallenge.resolvers=1.1.1.1:53"
+      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--providers.file.filename=/etc/traefik/static/ssh-enterpoints.yml"
+      - "--providers.file.watch=true"
     environment:
       - CF_API_EMAIL=$CLOUDFLARE_EMAIL
       - CF_DNS_API_TOKEN=$CLOUDFLARE_API_TOKEN
@@ -48,6 +55,8 @@ services:
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "./letsencrypt:/letsencrypt"
+      - "./dynamic:/etc/traefik/dynamic"
+      - "./static:/etc/traefik/static"
     networks:
       - $TRAEFIK_NETWORK
 
@@ -55,6 +64,17 @@ networks:
   $TRAEFIK_NETWORK:
     external: true
 EOF
+
+
+# This is entry point for SSH
+touch $TRAEFIK_DIR/static/ssh-entrypoints.yml
+
+cat <<EOF | sudo tee $TRAEFIK_DIR/static/ssh-entrypoints.yml > /dev/null
+entryPoints:
+  ssh:
+    address: ":2222"
+EOF
+
 
 # ----------------------
 # Create Docker network if missing
@@ -88,5 +108,6 @@ echo "--------------------------------------------------"
 echo " Dashboard : http://${SERVER_IP}:8080"
 echo " Network   : $TRAEFIK_NETWORK"
 echo " Certificates: Wildcard SSL via Cloudflare (*.${DOMAIN})"
+echo " SSH       : ssh://ssh.${DOMAIN}:2222"
 echo "--------------------------------------------------"
 echo "[✓] Traefik setup complete!"

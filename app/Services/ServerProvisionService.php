@@ -6,6 +6,7 @@ use App\Jobs\Scripts\Server\InstallAndSetupTraefikJob;
 use App\Jobs\Scripts\Server\InstallDockerJob;
 use App\Jobs\Scripts\Server\InstallNecesseryPackagesJob;
 use App\Jobs\Scripts\Server\StartProvisioningJob;
+use App\Jobs\Scripts\Server\UpdateServerFirewallJob;
 use App\Jobs\Scripts\Server\UpdateServerPackageJob;
 use App\Models\Server;
 use RuntimeException;
@@ -35,6 +36,7 @@ class ServerProvisionService
             new UpdateServerPackageJob($server),
             new InstallNecesseryPackagesJob($server),
             new InstallDockerJob($server),
+            new UpdateServerFirewallJob($server),
             new InstallAndSetupTraefikJob($server, $cloudflareApiToken),
 
         ])->onQueue('default')->dispatch();

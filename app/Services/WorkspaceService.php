@@ -2,10 +2,12 @@
 
 namespace App\Services;
 
+use App\Jobs\CloseUserTaskAttemptJob;
+use App\Jobs\Scripts\Server\FindFreePort;
 use App\Jobs\Scripts\Workspace\CreateUserJob;
 use App\Jobs\Scripts\Workspace\FinalizeWorkspaceJob;
-use App\Jobs\Scripts\Workspace\SetupCaddyServerJob;
 use App\Jobs\Scripts\Workspace\SetDockerComposeJob;
+use App\Jobs\Scripts\Workspace\SetSshAccessToContainerJob;
 use App\Jobs\Scripts\Workspace\StartDockerComposeJob;
 use App\Models\Task;
 use App\Models\User;
@@ -33,67 +35,119 @@ class WorkspaceService
             'task_id' => $task->id,
             'status' => 'pending',
         ]);
+
         $attempt->save();
 
-        // Generate credentials
-        $username = "user_{$attempt->id}";
-        $password = $this->generatePassword();
-        $workspacePath = '/home/' . $username . '/workspace_' . $attempt->id;
+        $attempt_randorm_uid = bin2hex(random_bytes(4));
 
-        $attempt_name = bin2hex(random_bytes(4));
-        $domain = 'wpqa.online';
+        if($task->sandbox)
+        {
+            // Generate Credentials
+            $hostUsername = "user_".$attempt->id;
+            $hostPassword = $this->generatePassword();
 
-        // Update attempt with initial notes
-        $attempt->notes = $this->appendToNotes(
-            $attempt->notes,
-            sprintf("[%s] Started workspace attempt", now()->toDateTimeString())
-        );
-        $attempt->notes = $this->appendToNotes(
-            $attempt->notes,
-            sprintf("[%s] Workspace username: %s", now()->toDateTimeString(), $username)
-        );
-        $attempt->notes = $this->appendToNotes(
-            $attempt->notes,
-            sprintf("[%s] Workspace password: %s", now()->toDateTimeString(), $password)
-        );
+            $workspacePath = '/home/' . $hostUsername . '/workspace_'. $attempt->id;
 
-        $attempt->notes = $this->appendToNotes(
-            $attempt->notes,
-            sprintf("[%s] Workspace domain: %s", now()->toDateTimeString(), $domain)
-        );
-        $attempt->notes = $this->appendToNotes(
-            $attempt->notes,
-            sprintf("[%s] Workspace attempt name: %s", now()->toDateTimeString(), $attempt_name)
-        );
-        $attempt->save();
+            $domain = 'wpqa.online'; // TODO: Later send it to Server Model
 
-        // Validate server configuration
-        $server = $task->server;
-        if (!$server) {
-            $attempt->update([
-                'status' => 'failed',
-                'completed_at' => now(),
-                'notes' => $this->appendToNotes(
-                    $attempt->notes,
-                    sprintf("[%s] No server assigned to task", now()->toDateTimeString())
-                ),
+            // TODO: Need to create a trait for append Note into a model
+
+            $attempt->notes = $this->appendToNotes(
+                $attempt->notes,
+                sprintf("[%s] Started workspace attempt", now()->toDateTimeString())
+            );
+
+            $attempt->notes = $this->appendToNotes(
+                $attempt->notes,
+                sprintf("[%s] Workspace username: %s", now()->toDateTimeString(), $hostUsername)
+            );
+
+            $attempt->notes = $this->appendToNotes(
+                $attempt->notes,
+                sprintf("[%s] Workspace password: %s", now()->toDateTimeString(), $hostPassword)
+            );
+
+            $attempt->notes = $this->appendToNotes(
+                $attempt->notes,
+                sprintf("[%s] Workspace path: %s", now()->toDateTimeString(), $workspacePath)
+            );
+
+            $attempt->notes = $this->appendToNotes(
+                $attempt->notes,
+                sprintf("[%s] Workspace domain: %s.%s", now()->toDateTimeString(), $attempt_randorm_uid, $domain)
+            );
+
+            $attempt->save();
+
+            $accessPassword = $this->generatePassword();
+
+            $attempt->addMeta([
+                'workspace_domain' => $attempt_randorm_uid . '.' . $domain,
+                "domain" => $domain,
+                "ssh_port" => $attempt->getMeta('ssh_port'),
+                "access_user" => "candidate",
+                "access_password" => $accessPassword,
+                "workspace_path" => $workspacePath,
+
             ]);
-            throw new RuntimeException('No server assigned to task');
+            $attempt->save();
+
+            if (!$attempt->task->server) {
+                $attempt->update([
+                    'status' => 'failed',
+                    'completed_at' => now(),
+                    'notes' => $this->appendToNotes(
+                        $attempt->notes,
+                        sprintf("[%s] No server assigned to task", now()->toDateTimeString())
+                    ),
+                ]);
+                throw new RuntimeException('No server assigned to task');
+            }
+
+            $jobs = [];
+            $jobs[] = new CreateUserJob($attempt, $attempt->task->server, $hostUsername, $hostPassword, $workspacePath);
+            $jobs[] = new FindFreePort($attempt->task->server->id, $attempt->id);
+            $jobs[] = new SetDockerComposeJob($attempt->id, $this->yamlFillWithData($task->docker_compose_yaml, [
+                    "attempt_name" => $attempt_randorm_uid,
+                    "domain" => $attempt->getMeta('domain'),
+                    "ssh_port" => $attempt->getMeta('ssh_port'),
+                    "access_user" => "candidate",
+                    "access_password" => $accessPassword,
+                    "workspace_path" => $workspacePath,
+                ]));
+            $jobs[] = new StartDockerComposeJob($attempt->id, $attempt->task->server->id, $workspacePath);
+            
+            if($attempt->task->allowssh)
+            {
+                $jobs[] = new SetSshAccessToContainerJob($attempt->id, $attempt->task->server->id);
+            }
+
+            $jobs[] = new FinalizeWorkspaceJob($attempt->id);
+
+
+
+            Bus::chain($jobs)->onQueue('default')->dispatch();
         }
 
+        $attempt->update([
+            'status' => 'running',
+            'started_at' => now(),
+        ]);
+
+        if($task->timer > 0)
+        {
+
+            CloseUserTaskAttemptJob::dispatch($attempt)->delay(now()->addMinutes($task->timer));
 
 
-        // Dispatch job chain
-        Bus::chain([
-            new CreateUserJob($attempt, $server, $username, $password, $workspacePath),
-            new SetDockerComposeJob($attempt, $server, $username, $workspacePath, $this->yamlFillWithData($task->docker_compose_yaml, [
-                "attempt_name" => $attempt_name,
-                "domain" => $domain
-            ])),
-            new StartDockerComposeJob($attempt, $server, $workspacePath),
-            new FinalizeWorkspaceJob($attempt),
-        ])->onQueue('default')->dispatch();
-
+            $attempt->addMeta([
+                'timer' => $task->timer,
+                'warrning_timer' => $task->warrning_timer,
+                'warning_timer_sound' => $task->warning_timer_sound,
+            ]);
+        }
+        $attempt->save();
+                
 
         return $attempt;
     }
@@ -108,6 +162,7 @@ class WorkspaceService
     protected function yamlFillWithData(string $yaml, array $data): string
     {
 
+        
         preg_match_all('/{{(\w+)}}/', $yaml, $matches);
         $placeholders = $matches[1];
 
