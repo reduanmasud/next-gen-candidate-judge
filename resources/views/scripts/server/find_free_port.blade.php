@@ -26,9 +26,11 @@ echo "➡️ Moving to the next step..."
 for ((port=$start_port; port<=$max_port; port++)); do
   # Check if the port is free
   if ! nc -z localhost $port 2>/dev/null; then
-    echo "__PORT_START__"
-    echo $port
-    echo "__PORT_END__"
+    
+    # Output JSON for PHP
+      echo "__OUTPUT_JSON__"
+      echo "{\"ssh_port\": $port }"
+      echo "__OUTPUT_JSON_END__"
 
     # Save port to file
     echo "$port" > "{{ $workspacePath }}/.ssh_port"
@@ -41,4 +43,7 @@ done
 
 
 echo "[!] No free port found in range $start_port-$max_port" >&2
+echo "__OUTPUT_JSON__"
+echo "{\"error\": \"No free port found between $start_port and $max_port\"}"
+echo "__OUTPUT_JSON_END__"
 exit 1

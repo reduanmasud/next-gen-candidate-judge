@@ -48,12 +48,12 @@ class FindFreePort extends BaseScriptJob
                 throw new \RuntimeException('Failed to find free port: ' . ($result['error_output'] ?? $result['output'] ?? 'Unknown error'));
             }
 
-            $port = $this->extractPortFromOutput($result['output'] ?? '');
+            $data = $this->extractJsonOutput($result['output'] ?? '');
 
             $this->attempt->update([
-                'container_port' => $port,
+                'container_port' => $data['ssh_port'],
             ]);
-            $this->attempt->addMeta(['ssh_port' => $port]);
+            $this->attempt->addMeta(['ssh_port' => $data['ssh_port']]);
             $this->attempt->save();
 
             $jobRun->update([
@@ -72,22 +72,21 @@ class FindFreePort extends BaseScriptJob
         }
     }
 
-    private function extractPortFromOutput(string $output): int
+    private function extractJsonOutput(string $output): array
     {
-        $port = null;
-        $lines = explode("\n", $output);
+        if (preg_match('/__OUTPUT_JSON__([\s\S]*?)__OUTPUT_JSON_END__/m', $output, $matches)) {
+            $json = trim($matches[1]);
+            $data = json_decode($json, true);
 
-        foreach ($lines as $line) {
-            if (strpos($line, '__PORT_START__') !== false) {
-                $port = (int) str_replace('__PORT_END__', '', $line);
-                break;
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                throw new \RuntimeException("Invalid JSON output: " . json_last_error_msg());
             }
+
+            return $data;
         }
 
-        if ($port === null) {
-            throw new \RuntimeException('Failed to extract port from output');
-        }
-
-        return $port;
+        throw new \RuntimeException("Failed to find JSON output in script:\n" . $output);
     }
+
+
 }
