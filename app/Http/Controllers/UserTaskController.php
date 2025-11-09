@@ -86,6 +86,9 @@ class UserTaskController extends Controller
         $attempt->loadMissing('task');
         $task = $attempt->task;
 
+        // Load judge configurations
+        $task->load(['aiJudges', 'quizJudges.quizQuestionAnswers', 'textJudges', 'autoJudge']);
+
         $metadata = [];
 
         if ($attempt->notes) {
@@ -118,12 +121,47 @@ class UserTaskController extends Controller
                 : sprintf('%s/%s', $baseUrl, $path);
         }
 
+        // Prepare judge data based on judge type
+        $judgeData = null;
+        if ($task->judge_type === 'AiJudge') {
+            $judgeData = $task->aiJudges->map(function ($aiJudge) {
+                return [
+                    'id' => $aiJudge->id,
+                    'question' => $aiJudge->question,
+                    'prompt' => $aiJudge->prompt,
+                ];
+            })->toArray();
+        } elseif ($task->judge_type === 'QuizJudge') {
+            $judgeData = $task->quizJudges->map(function ($quizJudge) {
+                return [
+                    'id' => $quizJudge->id,
+                    'question' => json_decode($quizJudge->questions, true),
+                    'options' => $quizJudge->quizQuestionAnswers->map(function ($answer) {
+                        return [
+                            'id' => $answer->id,
+                            'choice' => $answer->choice,
+                        ];
+                    })->toArray(),
+                ];
+            })->toArray();
+        } elseif ($task->judge_type === 'TextJudge') {
+            $judgeData = $task->textJudges->map(function ($textJudge) {
+                return [
+                    'id' => $textJudge->id,
+                    'question' => $textJudge->questions,
+                ];
+            })->toArray();
+        }
+
         return Inertia::render('user/tasks/show', [
             'task' => [
                 'id' => $task->id,
                 'title' => $task->title,
                 'description' => $task->description,
                 'score' => $task->score,
+                'judge_type' => $task->judge_type,
+                'timer' => $task->timer,
+                'allowssh' => $task->allowssh,
             ],
             'attempt' => [
                 'id' => $attempt->id,
@@ -141,6 +179,7 @@ class UserTaskController extends Controller
                 'username' => $metadata['workspace_username'] ?? null,
                 'password' => $metadata['workspace_password'] ?? null,
             ],
+            'judgeData' => $judgeData,
         ]);
     }
 
