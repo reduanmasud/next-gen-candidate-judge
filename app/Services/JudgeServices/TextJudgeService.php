@@ -60,9 +60,13 @@ class TextJudgeService implements JudgeInterface
         $scorePerQuestion = $maxPossibleScore / $totalQuestions;
         $actualScore = $correctCount * $scorePerQuestion;
 
-        // Check if passed (>= 80% of task's total score)
-        $passingThreshold = $task->score * 0.8;
-        $passed = $actualScore >= $passingThreshold;
+        // Calculate what the max score would be for the NEXT attempt
+        $nextAttemptNumber = $attemptNumber + 1;
+        $nextAttemptMaxScore = $this->calculateMaxScore($task->score, $nextAttemptNumber);
+
+        // Task should be locked if the next attempt's max possible score is below 20% threshold
+        $lockingThreshold = $task->score * 0.2;
+        $shouldLock = $nextAttemptMaxScore < $lockingThreshold;
 
         return [
             'score' => round($actualScore, 2),
@@ -70,7 +74,8 @@ class TextJudgeService implements JudgeInterface
             'correct_count' => $correctCount,
             'total_count' => $totalQuestions,
             'details' => $details,
-            'passed' => $passed,
+            'should_lock' => $shouldLock,
+            'next_attempt_max_score' => round($nextAttemptMaxScore, 2),
             'attempt_number' => $attemptNumber,
         ];
     }

@@ -1,9 +1,8 @@
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
 import { Head, router } from '@inertiajs/react';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { PlayIcon, Lock } from 'lucide-react';
-import { Spinner } from '@/components/ui/spinner';
 
 interface Task {
     id: number;
@@ -21,15 +20,10 @@ interface UserTasksIndexProps {
 }
 
 export default function UserTasksIndex({ tasks }: UserTasksIndexProps) {
-    const [preparingTaskId, setPreparingTaskId] = useState<number | null>(null);
-
-    const preparingTask = useMemo(
-        () => tasks.find((task) => task.id === preparingTaskId) ?? null,
-        [preparingTaskId, tasks],
-    );
+    const [startingTaskId, setStartingTaskId] = useState<number | null>(null);
 
     const handleStart = (task: Task) => {
-        if (preparingTaskId !== null || task.is_locked) {
+        if (startingTaskId !== null || task.is_locked) {
             return;
         }
 
@@ -38,15 +32,20 @@ export default function UserTasksIndex({ tasks }: UserTasksIndexProps) {
             return;
         }
 
-        // Set preparingTaskId immediately to prevent double-clicks
-        setPreparingTaskId(task.id);
+        // Set startingTaskId immediately to prevent double-clicks
+        setStartingTaskId(task.id);
 
         router.post(
             `/my-tasks/${task.id}/start`,
             {},
             {
-                onError: () => setPreparingTaskId(null),
-                onCancel: () => setPreparingTaskId(null),
+                onError: (errors) => {
+                    console.error('Error starting task:', errors);
+                    setStartingTaskId(null);
+                },
+                onFinish: () => {
+                    setStartingTaskId(null);
+                },
             },
         );
     };
@@ -98,7 +97,7 @@ export default function UserTasksIndex({ tasks }: UserTasksIndexProps) {
                                         <Button
                                             className="w-full"
                                             onClick={() => handleStart(task)}
-                                            disabled={preparingTaskId !== null}
+                                            disabled={startingTaskId !== null}
                                         >
                                             <PlayIcon className="mr-2 h-4 w-4" />
                                             {task.is_started ? 'Open Workspace' : 'Start Task'}
@@ -124,23 +123,6 @@ export default function UserTasksIndex({ tasks }: UserTasksIndexProps) {
                     </div>
                 )}
             </div>
-
-            {preparingTask && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-                    <div className="flex w-full max-w-md flex-col items-center gap-4 rounded-lg border bg-card px-8 py-6 text-center shadow-lg">
-                        <Spinner className="h-8 w-8" />
-                        <div>
-                            <p className="text-lg font-semibold">
-                                Preparing your workspace…
-                            </p>
-                            <p className="mt-1 text-sm text-muted-foreground">
-                                Setting up Docker environment for{' '}
-                                <span className="font-medium">{preparingTask.title}</span>. This may take a moment.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            )}
         </AppLayout>
     );
 }

@@ -23,7 +23,8 @@ interface SubmissionResult {
     correct_count: number;
     total_count: number;
     details: QuestionDetail[];
-    passed: boolean;
+    should_lock: boolean;
+    next_attempt_max_score: number;
     attempt_number: number;
 }
 
@@ -46,13 +47,14 @@ export default function SubmissionResultModal({
 
     const percentage = (result.score / taskScore) * 100;
     const penaltyPercentage = (result.attempt_number - 1) * 10;
+    const lockingThreshold = taskScore * 0.2;
 
     return (
         <Dialog open={open} onOpenChange={onClose}>
             <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
-                        {result.passed ? (
+                        {!locked ? (
                             <>
                                 <CheckCircle2 className="h-6 w-6 text-green-600" />
                                 Submission Successful
@@ -116,7 +118,9 @@ export default function SubmissionResultModal({
                                         Task Locked
                                     </p>
                                     <p className="text-sm text-red-800 dark:text-red-200 mt-1">
-                                        Your score is below 80% of the task's total points. 
+                                        The next attempt's maximum possible score would be{' '}
+                                        <span className="font-semibold">{result.next_attempt_max_score.toFixed(2)} points</span>,
+                                        which is below the 20% threshold ({lockingThreshold.toFixed(2)} points required).
                                         This task has been locked and you can no longer attempt it.
                                     </p>
                                 </div>

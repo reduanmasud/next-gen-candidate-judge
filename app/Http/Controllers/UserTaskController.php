@@ -66,6 +66,41 @@ class UserTaskController extends Controller
                 ->with('error', 'This task is locked for you. You cannot attempt it again.');
         }
 
+        // Check if the next attempt would have a max score below 20% threshold
+        $attemptCount = UserTaskAttempt::where('user_id', $user->id)
+            ->where('task_id', $task->id)
+            ->count();
+
+        $nextAttemptNumber = $attemptCount + 1;
+        $nextAttemptMaxScore = $this->calculateMaxScore($task->score, $nextAttemptNumber);
+        $lockingThreshold = $task->score * 0.2;
+
+        if ($nextAttemptMaxScore < $lockingThreshold) {
+            // Create lock record if it doesn't exist
+            TaskUserLock::firstOrCreate(
+                [
+                    'task_id' => $task->id,
+                    'user_id' => $user->id,
+                ],
+                [
+                    'reason' => sprintf(
+                        'Task locked: Maximum possible score for attempt #%d would be %.2f points, which is below the 20%% threshold (%.2f points required)',
+                        $nextAttemptNumber,
+                        $nextAttemptMaxScore,
+                        $lockingThreshold
+                    ),
+                ]
+            );
+
+            return redirect()->route('user-tasks.index')
+                ->with('error', sprintf(
+                    'This task is locked. You have made %d attempts and the maximum possible score for the next attempt would be %.2f points, which is below the 20%% threshold (%.2f points required).',
+                    $attemptCount,
+                    $nextAttemptMaxScore,
+                    $lockingThreshold
+                ));
+        }
+
         // Load the server relationship if it exists
         $task->loadMissing('server');
 
@@ -305,25 +340,29 @@ class UserTaskController extends Controller
             );
             $attempt->appendNote($noteMessage);
 
-            // Check if task should be locked
-            if (!$result['passed']) {
+            // Check if task should be locked based on next attempt's max possible score
+            if ($result['should_lock']) {
                 TaskUserLock::create([
                     'task_id' => $task->id,
                     'user_id' => $user->id,
                     'reason' => sprintf(
-                        'Task locked due to low score (%.2f points, required %.2f points)',
-                        $result['score'],
-                        $task->score * 0.8
+                        'Task locked: Next attempt\'s maximum possible score (%.2f points) would be below 20%% threshold (%.2f points required)',
+                        $result['next_attempt_max_score'],
+                        $task->score * 0.2
                     ),
                 ]);
 
-                $attempt->appendNote('Task has been locked due to score below 80% threshold.');
+                $attempt->appendNote(sprintf(
+                    'Task has been locked. Next attempt would have a maximum possible score of %.2f points, which is below the 20%% threshold (%.2f points).',
+                    $result['next_attempt_max_score'],
+                    $task->score * 0.2
+                ));
             }
 
             return response()->json([
                 'success' => true,
                 'result' => $result,
-                'locked' => !$result['passed'],
+                'locked' => $result['should_lock'],
             ]);
         }
 
@@ -356,5 +395,22 @@ class UserTaskController extends Controller
         );
 
         return $notes;
+    }
+
+    /**
+     * Calculate maximum possible score based on attempt number.
+     * Each attempt reduces the max score by 10%.
+     *
+     * @param int $taskScore
+     * @param int $attemptNumber
+     * @return float
+     */
+    protected function calculateMaxScore(int $taskScore, int $attemptNumber): float
+    {
+        // Attempt 1: 100%, Attempt 2: 90%, Attempt 3: 80%, etc.
+        $penaltyPercentage = ($attemptNumber - 1) * 10;
+        $maxPercentage = max(0, 100 - $penaltyPercentage);
+
+        return ($taskScore * $maxPercentage) / 100;
     }
 }
