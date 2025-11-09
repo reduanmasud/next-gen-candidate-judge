@@ -52,14 +52,16 @@ class TaskController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
+        // Determine if sandbox is enabled
+        $sandboxEnabled = $request->boolean('sandbox', false);
 
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'required|string',
-            'docker_compose_yaml' => 'required|string',
+            'docker_compose_yaml' => $sandboxEnabled ? 'required|string' : 'nullable|string',
             'score' => 'required|integer|min:0',
             'is_active' => 'required|boolean',
-            'server_id' => 'nullable|exists:servers,id',
+            'server_id' => $sandboxEnabled ? 'required|exists:servers,id' : 'nullable|exists:servers,id',
             'pre_script' => 'nullable|string',
             'post_script' => 'nullable|string',
             'judge_type' => 'nullable|string|in:AiJudge,QuizJudge,TextJudge,AutoJudge',
@@ -139,12 +141,16 @@ class TaskController extends Controller
      */
     public function update(Request $request, Task $task): RedirectResponse
     {
+        // Determine if sandbox is enabled
+        $sandboxEnabled = $request->boolean('sandbox', false);
+
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'required|string',
-            'docker_compose_yaml' => 'required|string',
+            'docker_compose_yaml' => $sandboxEnabled ? 'required|string' : 'nullable|string',
             'score' => 'required|integer|min:0',
             'is_active' => 'required|boolean',
+            'server_id' => $sandboxEnabled ? 'required|exists:servers,id' : 'nullable|exists:servers,id',
             'pre_script' => 'nullable|string',
             'post_script' => 'nullable|string',
             'judge_type' => 'nullable|string|in:AiJudge,QuizJudge,TextJudge,AutoJudge',

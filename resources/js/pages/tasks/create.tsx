@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { PlusIcon, Trash2Icon } from 'lucide-react';
+import { toast } from 'sonner';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -94,7 +95,22 @@ export default function CreateTask({ servers = [] as { id: number; name: string;
             warning_timer_sound: data.timer > 0 ? data.warning_timer_sound : false,
         };
 
-        router.post('/tasks', submitData as any);
+        router.post('/tasks', submitData as any, {
+            onSuccess: () => {
+                toast.success('Task created successfully!');
+            },
+            onError: (errors) => {
+                // Show a general error toast
+                const errorMessages = Object.values(errors).flat();
+                if (errorMessages.length > 0) {
+                    toast.error('Failed to create task', {
+                        description: errorMessages[0] as string,
+                    });
+                } else {
+                    toast.error('Failed to create task. Please check the form and try again.');
+                }
+            },
+        });
     };
 
     // AI Judge handlers
@@ -211,7 +227,7 @@ export default function CreateTask({ servers = [] as { id: number; name: string;
 
                                 <div className="space-y-2">
                                     <Label htmlFor="docker_compose_yaml">
-                                        Docker Compose Configuration
+                                        Docker Compose Configuration {!data.sandbox && '(Optional)'}
                                     </Label>
                                     <Textarea
                                         id="docker_compose_yaml"
@@ -223,9 +239,13 @@ export default function CreateTask({ servers = [] as { id: number; name: string;
                                         rows={14}
                                         className="font-mono text-sm"
                                         required={data.sandbox}
+                                        disabled={!data.sandbox}
                                     />
                                     <p className="text-xs text-muted-foreground">
-                                        Paste valid YAML. Use services, volumes, and networks as needed.
+                                        {data.sandbox
+                                            ? 'Paste valid YAML. Use services, volumes, and networks as needed.'
+                                            : 'Docker Compose is only required when Sandbox is enabled.'
+                                        }
                                     </p>
                                     <InputError message={errors.docker_compose_yaml} />
                                 </div>
@@ -541,14 +561,19 @@ export default function CreateTask({ servers = [] as { id: number; name: string;
 
                             <div className="space-y-6 lg:col-span-1">
                                 <div className="space-y-2">
-                                    <Label htmlFor="server_id">Target Server (optional)</Label>
+                                    <Label htmlFor="server_id">
+                                        Target Server {data.sandbox ? '(required for sandbox)' : '(optional)'}
+                                    </Label>
                                     <select
                                         id="server_id"
                                         className="w-full rounded-md border bg-background p-2 text-sm"
                                         value={data.server_id as any}
                                         onChange={(e) => setData('server_id', e.target.value ? Number(e.target.value) : '')}
+                                        required={data.sandbox}
                                     >
-                                        <option value="">Local (default)</option>
+                                        <option value="">
+                                            {data.sandbox ? 'Select a server...' : 'Local (default)'}
+                                        </option>
                                         {servers.map((s) => (
                                             <option key={s.id} value={s.id}>
                                                 {s.name} ({s.ip_address})
@@ -556,7 +581,10 @@ export default function CreateTask({ servers = [] as { id: number; name: string;
                                         ))}
                                     </select>
                                     <p className="text-xs text-muted-foreground">
-                                        Choose a provisioned server to run this task on.
+                                        {data.sandbox
+                                            ? 'A provisioned server is required to run sandbox tasks.'
+                                            : 'Choose a provisioned server to run this task on, or leave empty for local.'
+                                        }
                                     </p>
                                     <InputError message={errors.server_id} />
                                 </div>

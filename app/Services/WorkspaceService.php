@@ -45,7 +45,7 @@ class WorkspaceService
                 'username' => $hostUsername,
                 'password' => $hostPassword,
                 'ssh_port' => 22,
-                
+
             ]);
 
             $workspacePath = '/home/' . $hostUsername . '/workspace_'. $attempt->id;
@@ -60,7 +60,7 @@ class WorkspaceService
             $attempt->addMeta([
                 'ssh' => "ssh $hostUsername@$attempt_randorm_uid.$domain",
             ]);
-            
+
             $attempt->appendNote("Started workspace attempt.");
             $attempt->appendNote("Workspace username: ".$hostUsername);
             $attempt->appendNote("Workspace password: ".$hostPassword);
@@ -70,7 +70,7 @@ class WorkspaceService
 
             if(!$task->server)
             {
-                throw new RuntimeException('No server assigned to task');
+                throw new RuntimeException('No server assigned to task with sandbox enabled');
             }
 
 
@@ -84,7 +84,7 @@ class WorkspaceService
                     "workspace_path" => $workspacePath,
                 ]));
             $jobs[] = new StartDockerComposeJob($attempt->id, $attempt->task->server->id);
-            
+
             if($attempt->task->allowssh)
             {
                 $jobs[] = new SetSshAccessToContainerJob($attempt->id, $attempt->task->server->id);
@@ -96,6 +96,13 @@ class WorkspaceService
 
             Bus::chain($jobs)->onQueue('default')->dispatch();
 
+        }
+        else
+        {
+            // For non-sandbox tasks, mark as running immediately
+            $attempt->status = 'running';
+            $attempt->started_at = now();
+            $attempt->appendNote("Started non-sandbox task attempt.");
         }
 
         if($task->timer > 0)
@@ -111,7 +118,7 @@ class WorkspaceService
             ]);
         }
         $attempt->save();
-                
+
 
         return $attempt;
     }
