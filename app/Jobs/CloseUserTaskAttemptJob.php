@@ -33,12 +33,7 @@ class CloseUserTaskAttemptJob implements ShouldQueue
             'completed_at' => now(),
         ]);
 
-        $this->attempt->notes = $this->appendToNotes(
-            $this->attempt->notes,
-            sprintf("[%s] Attempt closed", now()->toDateTimeString())
-        );
-
-        $this->attempt->save();
+        $this->attempt->appendNote("Attempt closed By Timeout.");
 
 
         if($this->attempt->task->sandbox)

@@ -89,15 +89,8 @@ class UserTaskController extends Controller
         // Load judge configurations
         $task->load(['aiJudges', 'quizJudges.quizQuestionAnswers', 'textJudges', 'autoJudge']);
 
-        $metadata = [];
-
-        if ($attempt->notes) {
-            $decodedNotes = json_decode($attempt->notes, true);
-
-            if (is_array($decodedNotes)) {
-                $metadata = $decodedNotes;
-            }
-        }
+        // Get metadata from attempt
+        $metadata = $attempt->getAllMeta();
 
         $terminalConfig = config('services.workspace');
         $terminalProtocol = $terminalConfig['terminal_protocol'] ?? $request->getScheme();
@@ -162,6 +155,7 @@ class UserTaskController extends Controller
                 'judge_type' => $task->judge_type,
                 'timer' => $task->timer,
                 'allowssh' => $task->allowssh,
+                'sandbox' => $task->sandbox,
             ],
             'attempt' => [
                 'id' => $attempt->id,
@@ -172,12 +166,9 @@ class UserTaskController extends Controller
                 'container_port' => $attempt->container_port,
                 'notes' => $attempt->notes,
             ],
+            'metadata' => $metadata,
             'workspace' => [
                 'terminal_url' => $terminalUrl,
-                'mode' => $metadata['workspace_mode'] ?? null,
-                'path' => $metadata['workspace_path'] ?? null,
-                'username' => $metadata['workspace_username'] ?? null,
-                'password' => $metadata['workspace_password'] ?? null,
             ],
             'judgeData' => $judgeData,
         ]);

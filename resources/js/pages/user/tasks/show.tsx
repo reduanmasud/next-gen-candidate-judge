@@ -21,6 +21,7 @@ interface TaskResource {
     judge_type: JudgeType;
     timer: number | null;
     allowssh: boolean;
+    sandbox: boolean;
 }
 
 interface AttemptResource {
@@ -33,12 +34,23 @@ interface AttemptResource {
     notes: string | null;
 }
 
+interface MetadataResource {
+    username?: string;
+    password?: string;
+    ssh_port?: number;
+    domain?: string;
+    workspace_path?: string;
+    ssh?: string;
+    timer?: number;
+    warrning_timer?: number;
+    warning_timer_sound?: boolean;
+    containers?: any[];
+    primary_container?: any;
+    primary_container_name?: string;
+}
+
 interface WorkspaceResource {
     terminal_url: string | null;
-    username: string | null;
-    password: string | null;
-    mode: string | null;
-    path: string | null;
 }
 
 interface AiJudgeQuestion {
@@ -65,6 +77,7 @@ interface UserTaskWorkspaceProps {
     task: TaskResource;
     attempt: AttemptResource;
     workspace: WorkspaceResource;
+    metadata: MetadataResource;
     judgeData: AiJudgeQuestion[] | QuizJudgeQuestion[] | TextJudgeQuestion[] | null;
 }
 
@@ -76,7 +89,7 @@ const statusLabels: Record<string, string> = {
     terminated: 'Terminated',
 };
 
-export default function UserTaskWorkspace({ task, attempt, workspace, judgeData }: UserTaskWorkspaceProps) {
+export default function UserTaskWorkspace({ task, attempt, workspace, metadata, judgeData }: UserTaskWorkspaceProps) {
     const { auth } = usePage<SharedData>().props;
     const [isRestarting, setIsRestarting] = useState(false);
     const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
@@ -326,36 +339,51 @@ export default function UserTaskWorkspace({ task, attempt, workspace, judgeData 
                                     </Card>
                                 )}
 
-                                {/* SSH Credentials Card */}
-                                {task.allowssh && (workspace.username || workspace.password) && (
+                                {/* Workspace Information Card */}
+                                {task.sandbox && metadata.domain && (
                                     <Card>
                                         <CardHeader>
                                             <CardTitle className="flex items-center gap-2">
                                                 <Key className="h-5 w-5" />
-                                                SSH Credentials
+                                                {task.allowssh ? 'SSH Credentials' : 'Workspace Information'}
                                             </CardTitle>
                                         </CardHeader>
                                         <Separator />
                                         <CardContent className="pt-6">
                                             <dl className="space-y-3 text-sm">
-                                                {workspace.username && (
+                                                {task.allowssh ? (
+                                                    <>
+                                                        {metadata.username && (
+                                                            <div>
+                                                                <dt className="text-muted-foreground">Username</dt>
+                                                                <dd className="mt-1 font-mono">{metadata.username}</dd>
+                                                            </div>
+                                                        )}
+                                                        {metadata.password && (
+                                                            <div>
+                                                                <dt className="text-muted-foreground">Password</dt>
+                                                                <dd className="mt-1 font-mono">{metadata.password}</dd>
+                                                            </div>
+                                                        )}
+                                                        {metadata.domain && (
+                                                            <div>
+                                                                <dt className="text-muted-foreground">Hostname</dt>
+                                                                <dd className="mt-1 font-mono">{metadata.domain}</dd>
+                                                            </div>
+                                                        )}
+                                                        {metadata.ssh && (
+                                                            <div>
+                                                                <dt className="text-muted-foreground">SSH Command</dt>
+                                                                <dd className="mt-1 font-mono text-xs break-all">
+                                                                    {metadata.ssh}
+                                                                </dd>
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                ) : (
                                                     <div>
-                                                        <dt className="text-muted-foreground">Username</dt>
-                                                        <dd className="mt-1 font-mono">{workspace.username}</dd>
-                                                    </div>
-                                                )}
-                                                {workspace.password && (
-                                                    <div>
-                                                        <dt className="text-muted-foreground">Password</dt>
-                                                        <dd className="mt-1 font-mono">{workspace.password}</dd>
-                                                    </div>
-                                                )}
-                                                {workspace.path && (
-                                                    <div>
-                                                        <dt className="text-muted-foreground">Workspace Path</dt>
-                                                        <dd className="mt-1 truncate font-mono text-xs">
-                                                            {workspace.path}
-                                                        </dd>
+                                                        <dt className="text-muted-foreground">Domain</dt>
+                                                        <dd className="mt-1 font-mono">{metadata.domain}</dd>
                                                     </div>
                                                 )}
                                             </dl>
@@ -378,16 +406,6 @@ export default function UserTaskWorkspace({ task, attempt, workspace, judgeData 
                                                 <dt className="text-muted-foreground">Started</dt>
                                                 <dd className="mt-1">{startedAtText}</dd>
                                             </div>
-                                            <div>
-                                                <dt className="text-muted-foreground">Container</dt>
-                                                <dd className="mt-1">{attempt.container_name ?? 'Pending'}</dd>
-                                            </div>
-                                            {attempt.container_port && (
-                                                <div>
-                                                    <dt className="text-muted-foreground">Port</dt>
-                                                    <dd className="mt-1">{attempt.container_port}</dd>
-                                                </div>
-                                            )}
                                         </dl>
                                     </CardContent>
                                 </Card>
