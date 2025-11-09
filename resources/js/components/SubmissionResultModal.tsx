@@ -13,7 +13,7 @@ interface QuestionDetail {
     question_id: number;
     question: string;
     user_answer: string;
-    correct_answer: string;
+    correct_answer?: string; // Optional - not provided for TextJudge
     is_correct: boolean;
 }
 
@@ -161,7 +161,7 @@ export default function SubmissionResultModal({
                                                         {detail.user_answer || '(no answer)'}
                                                     </span>
                                                 </p>
-                                                {!detail.is_correct && (
+                                                {!detail.is_correct && detail.correct_answer && (
                                                     <p className="text-sm">
                                                         <span className="font-medium">Correct answer:</span>{' '}
                                                         <span className="text-green-700 dark:text-green-300">

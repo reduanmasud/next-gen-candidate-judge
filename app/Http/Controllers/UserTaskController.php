@@ -188,10 +188,13 @@ class UserTaskController extends Controller
                 ];
             })->toArray();
         } elseif ($task->judge_type === 'TextJudge') {
+            // Only send questions to users, NOT the answers
+            // Answers are kept server-side for verification during submission
             $judgeData = $task->textJudges->map(function ($textJudge) {
                 return [
                     'id' => $textJudge->id,
                     'question' => $textJudge->questions,
+                    // 'answers' field is intentionally excluded for security
                 ];
             })->toArray();
         }

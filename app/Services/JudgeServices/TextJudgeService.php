@@ -43,11 +43,12 @@ class TextJudgeService implements JudgeInterface
                 $correctCount++;
             }
 
+            // Do NOT include correct_answer in the details sent to frontend
+            // Users should only see if they were correct or not, not the actual answer
             $details[] = [
                 'question_id' => $questionId,
                 'question' => $judge->questions,
                 'user_answer' => $userAnswer,
-                'correct_answer' => $correctAnswer,
                 'is_correct' => $isCorrect,
             ];
         }
