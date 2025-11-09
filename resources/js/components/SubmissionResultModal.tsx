@@ -7,7 +7,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { CheckCircle2, XCircle, Lock } from 'lucide-react';
+import { CheckCircle2, XCircle, Lock, Check } from 'lucide-react';
 
 interface QuestionDetail {
     question_id: number;
@@ -33,6 +33,7 @@ interface SubmissionResultModalProps {
     onClose: () => void;
     result: SubmissionResult | null;
     locked: boolean;
+    lockedDueToSuccess?: boolean;
     taskScore: number;
 }
 

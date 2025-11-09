@@ -366,8 +366,38 @@ class UserTaskController extends Controller
             );
             $attempt->appendNote($noteMessage);
 
-            // Check if task should be locked based on next attempt's max possible score
-            if ($result['should_lock']) {
+            // Check if all answers are correct (100% success)
+            $allCorrect = $result['correct_count'] === $result['total_count'];
+            $shouldLockDueToSuccess = false;
+
+            if ($allCorrect) {
+                // Lock the task immediately when user gets 100% correct
+                TaskUserLock::firstOrCreate(
+                    [
+                        'task_id' => $task->id,
+                        'user_id' => $user->id,
+                    ],
+                    [
+                        'reason' => sprintf(
+                            'Task completed successfully with all answers correct (%d/%d) on attempt #%d. Score: %.2f/%.2f points.',
+                            $result['correct_count'],
+                            $result['total_count'],
+                            $result['attempt_number'],
+                            $result['score'],
+                            $result['max_score']
+                        ),
+                    ]
+                );
+
+                $attempt->appendNote(sprintf(
+                    'Task completed successfully! All answers correct (%d/%d). Task has been locked.',
+                    $result['correct_count'],
+                    $result['total_count']
+                ));
+
+                $shouldLockDueToSuccess = true;
+            } elseif ($result['should_lock']) {
+                // Lock due to penalty threshold (too many failed attempts)
                 TaskUserLock::create([
                     'task_id' => $task->id,
                     'user_id' => $user->id,
@@ -388,7 +418,8 @@ class UserTaskController extends Controller
             return response()->json([
                 'success' => true,
                 'result' => $result,
-                'locked' => $result['should_lock'],
+                'locked' => $result['should_lock'] || $shouldLockDueToSuccess,
+                'locked_due_to_success' => $shouldLockDueToSuccess,
             ]);
         }
 
