@@ -2,25 +2,23 @@
 
 namespace App\Jobs\Scripts\Workspace;
 
+use App\Models\ScriptJobRun;
 use App\Models\Server;
 use App\Models\UserTaskAttempt;
 use App\Scripts\ScriptDescriptor;
 use App\Services\ScriptEngine;
-use App\Traits\AppendAttemptNotes;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class StartDockerComposeJob extends BaseWorkspaceJob
 {
-    use AppendAttemptNotes;
+
     public UserTaskAttempt $attempt;
     public Server $server;
 
     public function __construct(
         public Int $attemptId,
         public Int $serverId,
-        public string $workspacePath,
     ) {
         parent::__construct();
     }
@@ -30,91 +28,74 @@ class StartDockerComposeJob extends BaseWorkspaceJob
         $this->attempt = UserTaskAttempt::find($this->attemptId);
         $this->server = Server::find($this->serverId);
 
-        $script = ScriptDescriptor::make(
-            'scripts.start_docker_compose',
-            [
-                'workspacePath' => $this->workspacePath,
-                'task' => $this->attempt->task,
-            ],
-            'Start Docker Compose Script'
-        );
-
-        $jobRun = $this->createScriptJobRun($script, $this->attempt, $this->server, [
-            'workspace_path' => $this->workspacePath,
-            'attempt_id' => $this->attempt->id,
-        ]);
-
         try {
-            $result = $this->executeScriptAndRecord(
-                engine: $engine, 
-                jobRun: $jobRun, 
-                server: $this->server
+            $script = ScriptDescriptor::make(
+                'scripts.start_docker_compose',
+                [
+                    'workspace_path' => $this->attempt->getMeta('workspace_path'),
+                    'task' => $this->attempt->task,
+                ],
+                'Start Docker Compose Script'
             );
 
+            $this->attempt->appendNote("Starting docker compose for workspace");
+
+        
+
+            [$jobRun, $result] = ScriptJobRun::createAndExecute(
+                script: $script,
+                engine: $engine,
+                attempt: $this->attempt,
+                server: $this->server,
+                metadata: [
+                    'workspace_path' => $this->attempt->getMeta('workspace_path'),
+                    'attempt_id' => $this->attempt->id,
+                ]
+            );
+
+            $this->attempt->appendNote("Started docker compose for workspace");
             // Parse docker compose output to get container info
             $containers = $this->parseDockerComposeOutput($result['output'] ?? '');
             $primaryContainer = $containers[0] ?? null;
             $publishedPort = $primaryContainer ? $this->extractPublishedPort($primaryContainer) : null;
 
+            $this->attempt->appendNote("Parsed docker compose output for workspace");
+            $this->attempt->appendNote("Primary container: ".json_encode($primaryContainer));
+
             // Update attempt with container information
             $this->attempt->update([
-                'status' => 'running',
                 'container_id' => Arr::get($primaryContainer, 'ID'),
                 'container_name' => Arr::get($primaryContainer, 'Name'),
                 'container_port' => $publishedPort,
-                'started_at' => now(),
             ]);
 
-
-
-            $this->appendAttemptNotes(
-                $this->attempt,
-                sprintf(
-                    "[%s] Started docker compose. Container: %s, Port: %s",
-                    now()->toDateTimeString(),
-                    Arr::get($primaryContainer, 'Name', 'N/A'),
-                    $publishedPort ?? 'N/A'
-                )
-            );
-
-            if (!$result['successful']) {
-                throw new \RuntimeException('Failed to start docker compose: ' . ($result['error_output'] ?? $result['output'] ?? 'Unknown error'));
-            }
+            $this->attempt->appendNote("Updated attempt with container information");
+            $this->attempt->appendNote("Docker compose started successfully");
 
 
             // Update job run metadata using HasMeta trait
-            $jobRun->setMeta('containers', $containers);
-            $jobRun->setMeta('primary_container', $primaryContainer);
-            $jobRun->setMeta('primary_container_name', Arr::get($primaryContainer, 'Name'));
+            $jobRun->addMeta([
+                'containers' => $containers,
+                'primary_container' => $primaryContainer,
+                'primary_container_name' => Arr::get($primaryContainer, 'Name'),
+            ]);
 
 
             // Update attempt metadata using HasMeta trait
-            $this->attempt->setMeta('containers', $containers);
-            $this->attempt->setMeta('primary_container', $primaryContainer);
-            $this->attempt->setMeta('primary_container_name', Arr::get($primaryContainer, 'Name'));
+            $this->attempt->addMeta([
+                'containers' => $containers,
+                'primary_container' => $primaryContainer,
+                'primary_container_name' => Arr::get($primaryContainer, 'Name'),
+            ]);
+            
 
         } catch (Throwable $e) {
-            $jobRun->update([
-                'status' => 'failed',
-                'error_output' =>"Failed to start docker compose: " . $e->getMessage(),
-                'failed_at' => now(),
-                'completed_at' => now(),
-            ]);
-
             $this->attempt->update([
                 'status' => 'failed',
-                'completed_at' => now(),
-                'notes' => $this->appendToNotes(
-                    $this->attempt->notes,
-                    sprintf("[%s] Failed to start docker compose: %s", now()->toDateTimeString(), $e->getMessage())
-                ),
+                'failed_at' => now(),
             ]);
+            $this->attempt->appendNote("Failed to start docker compose: ".$e->getMessage());
 
-            Log::error('Start docker compose job failed', [
-                'attempt_id' => $this->attempt->id,
-                'workspace_path' => $this->workspacePath,
-                'error' => $e->getMessage(),
-            ]);
 
             throw $e; // Re-throw to stop the chain
         }

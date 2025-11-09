@@ -4,6 +4,7 @@
 namespace App\Jobs\Scripts\Server;
 
 use App\Jobs\Scripts\BaseScriptJob;
+use App\Models\ScriptJobRun;
 use App\Models\Server;
 use App\Models\UserTaskAttempt;
 use App\Scripts\ScriptDescriptor;
@@ -27,46 +28,50 @@ class FindFreePort extends BaseScriptJob
         $this->server = Server::find($this->serverId);
         $this->attempt = UserTaskAttempt::find($this->attemptId);
 
-        // TODO: Need to add error handling
-
-        $jobRun = $this->createScriptJobRun(
-            script: ScriptDescriptor::make('scripts.server.find_free_port', [
-                "workspacePath" => $this->attempt->getMeta('workspace_path'),
-            ], 'Find Free SSH Port '.$this->server->ip_address),
-            server: $this->server,
-            metadata: ['server_id' => $this->server->id]
-        );
+        $this->attempt->appendNote("Finding free port for SSH");
 
         try {
-            $result = $this->executeScriptAndRecord(
-                engine:$engine, 
-                jobRun:$jobRun, 
-                server:$this->server
-            );
 
-            if (!$result['successful']) {
-                throw new \RuntimeException('Failed to find free port: ' . ($result['error_output'] ?? $result['output'] ?? 'Unknown error'));
+            if(!$this->server) 
+            {
+                throw new \RuntimeException('Server not found');
             }
 
+            $script = ScriptDescriptor::make('scripts.server.find_free_port', [
+                "workspace_path" => $this->attempt->getMeta('workspace_path'),
+            ], 'Find Free SSH Port '.$this->server->ip_address);
+
+        
+
+            [$jobRun, $result] = ScriptJobRun::createAndExecute(
+                script: $script,
+                engine: $engine,
+                attempt: $this->attempt,
+                server: $this->server,
+                metadata: [
+                    'attempt_id' => $this->attempt->id,
+                    'server_id' => $this->server->id,
+                    'workspace_path' => $this->attempt->getMeta('workspace_path'),
+                ]
+            );
+
+            
+
             $data = $this->extractJsonOutput($result['output'] ?? '');
+            $this->attempt->appendNote("Found free port for SSH: ".$data['ssh_port']);
+
 
             $this->attempt->update([
                 'container_port' => $data['ssh_port'],
             ]);
             $this->attempt->addMeta(['ssh_port' => $data['ssh_port']]);
-            $this->attempt->save();
 
-            $jobRun->update([
-                'status' => 'completed',
-                'completed_at' => now(),
-            ]);
         } catch (Throwable $e) {
-            $jobRun->update([
+            $this->attempt->update([
                 'status' => 'failed',
-                'error_output' => "Failed to find free port: " . $e->getMessage(),
                 'failed_at' => now(),
-                'completed_at' => now(),
             ]);
+            $this->attempt->appendNote("Failed to find free port: ".$e->getMessage());
 
             throw $e; // Re-throw to stop the chain
         }

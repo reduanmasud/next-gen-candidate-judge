@@ -1,17 +1,17 @@
-mkdir -p '{!!  $workspacePath !!}'
+mkdir -p '{!!  $workspace_path !!}'
 
 
 
 # Run Pre Scripts
-{!! $preScripts !!}
+{!! $pre_scripts !!}
 
-export SSH_PORT=$(cat {!! $workspacePath !!}/.ssh_port)
+export SSH_PORT={!! $ssh_port !!}
 
-echo "Writing docker-compose.yaml to {{ $workspacePath }}/docker-compose.yaml"
+echo "Writing docker-compose.yaml to {{ $workspace_path }}/docker-compose.yaml"
 
-cat << 'EOF' > '{!! $workspacePath !!}/docker-compose.yaml'
-{!! $dockerComposeYaml !!}
+cat << 'EOF' > '{!! $workspace_path !!}/docker-compose.yaml'
+{!! $docker_compose_yaml !!}
 EOF
 
 # Run Post Scripts
-{!! $postScripts !!}
+{!! $post_scripts !!}

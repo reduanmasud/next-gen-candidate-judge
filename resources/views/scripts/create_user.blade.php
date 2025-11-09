@@ -8,10 +8,10 @@ fi
 echo "{{ $username }}:{{ $password }}" | chpasswd
 
 mkdir -p /home/{{ $username }}
-mkdir -p {{ $workspacePath }}
+mkdir -p {{ $workspace_path }}
 
 
-chown -R {{ $username }}:{{ $username }} {{ $workspacePath }}
+chown -R {{ $username }}:{{ $username }} {{ $workspace_path }}
 
 if id -nG {{ $username }} | grep -qw sudo; then
     sudo deluser {{ $username }} sudo

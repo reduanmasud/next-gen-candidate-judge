@@ -1,4 +1,4 @@
-cd '{{ $workspacePath }}'
+cd '{{ $workspace_path }}'
 
 # Stop any existing containers for this project without failing the script
 if [ -f "./docker-compose.yaml" ] && docker compose ps >/dev/null 2>&1; then
@@ -11,7 +11,7 @@ docker compose up -d
 
 @if ($task->timer > 0)
     # Run the timer and shutdown in the background so the job doesn't wait
-    nohup bash -c "sleep {{ $task->timer }}m && cd '{{ $workspacePath }}' && docker compose down --volumes --rmi all" > /dev/null 2>&1 &
+    nohup bash -c "sleep {{ $task->timer }}m && cd '{{ $workspace_path }}' && docker compose down --volumes --rmi all" > /dev/null 2>&1 &
 @endif
 
 

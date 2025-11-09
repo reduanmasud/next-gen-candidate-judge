@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Traits\HasMeta;
+use App\Traits\NotesAccessor;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -10,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class UserTaskAttempt extends Model
 {
     use HasMeta;
+    use NotesAccessor;
     
     protected $fillable = [
         'user_id',

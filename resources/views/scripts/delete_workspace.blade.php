@@ -14,8 +14,8 @@ TARIFIK_DYNAMIC_DIR="/opt/traefik/dynamic"
 rm -f $TARIFIK_DYNAMIC_DIR/ssh-{{ $container_name }}.yml 2>/dev/null || true
 echo "[✓] SSH access network removed successfully"
 
-ENTRY_PORT = (cat {!! $workspacePath !!}/.ssh_port)
-ENTRY_NAME = ssh-{{ $container_name }}
+ENTRY_PORT=(cat {!! $workspacePath !!}/.ssh_port)
+ENTRY_NAME=ssh-{{ $container_name }}
 
 yq -i -y "del(.entryPoints.${ENTRY_NAME})" /opt/traefik/static/ssh-entrypoints.yml
 @endif

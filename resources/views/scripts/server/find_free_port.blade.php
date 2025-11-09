@@ -1,4 +1,4 @@
-cd {{ $workspacePath }}
+cd {{ $workspace_path }}
 start_port=18000
 max_port=65535
 
@@ -33,7 +33,7 @@ for ((port=$start_port; port<=$max_port; port++)); do
       echo "__OUTPUT_JSON_END__"
 
     # Save port to file
-    echo "$port" > "{{ $workspacePath }}/.ssh_port"
+    echo "$port" > "{{ $workspace_path }}/.ssh_port"
 
 
     
