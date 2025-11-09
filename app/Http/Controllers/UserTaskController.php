@@ -200,4 +200,25 @@ class UserTaskController extends Controller
 
         return redirect()->route('user-tasks.show', $newAttempt);
     }
+
+    public function status(Request $request, UserTaskAttempt $attempt)
+    {
+        $user = $request->user();
+
+        if ($attempt->user_id !== $user->id) {
+            abort(403);
+        }
+
+        // Get metadata from attempt
+        $metadata = $attempt->getAllMeta();
+
+        return response()->json([
+            'status' => $attempt->status,
+            'started_at' => optional($attempt->started_at)->toIso8601String(),
+            'container_id' => $attempt->container_id,
+            'container_name' => $attempt->container_name,
+            'container_port' => $attempt->container_port,
+            'metadata' => $metadata,
+        ]);
+    }
 }

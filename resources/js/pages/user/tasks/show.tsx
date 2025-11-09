@@ -100,6 +100,18 @@ export default function UserTaskWorkspace({ task, attempt, workspace, metadata, 
     const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({});
     const [textAnswers, setTextAnswers] = useState<Record<number, string>>({});
 
+    // Poll for status updates when attempt is pending
+    useEffect(() => {
+        if (attempt.status === 'pending') {
+            const interval = setInterval(() => {
+                // Use Inertia's reload to refresh the page data
+                router.reload({ only: ['attempt', 'metadata', 'workspace'] });
+            }, 2000); // Poll every 2 seconds
+
+            return () => clearInterval(interval);
+        }
+    }, [attempt.status]);
+
     const isAdmin = useMemo(() => {
         return auth.user?.roles?.includes('admin') ?? false;
     }, [auth.user]);
@@ -208,16 +220,20 @@ export default function UserTaskWorkspace({ task, attempt, workspace, metadata, 
 
             <div className="flex h-full flex-1 flex-col gap-4 overflow-auto p-4">
                 {attempt.status === 'pending' ? (
-                    <div className="flex w-full max-w-md flex-col items-center gap-4 rounded-lg border bg-card px-8 py-6 text-center shadow-lg">
-                        <Spinner className="h-8 w-8" />
-                        <div>
-                            <p className="text-lg font-semibold">
-                                Preparing your workspace…
-                            </p>
-                            <p className="mt-1 text-sm text-muted-foreground">
-                                Setting up Docker environment for{' '}
-                                <span className="font-medium">{task.title}</span>. This may take a moment.
-                            </p>
+                    <div className="flex h-full w-full items-center justify-center">
+                        <div className="flex w-full max-w-md flex-col items-center gap-4 rounded-lg border bg-card px-8 py-6 text-center shadow-lg">
+                            <Spinner className="h-8 w-8" />
+                            <div>
+                                <p className="text-xl font-bold mb-2">
+                                    {task.title}
+                                </p>
+                                <p className="text-lg font-semibold">
+                                    Preparing your workspace…
+                                </p>
+                                <p className="mt-1 text-sm text-muted-foreground">
+                                    Setting up Docker environment. This may take a moment.
+                                </p>
+                            </div>
                         </div>
                     </div>
                 ) : (
