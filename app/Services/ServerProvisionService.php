@@ -16,11 +16,13 @@ use Illuminate\Support\Facades\Log;
 
 class ServerProvisionService
 {
-    use AppendsNotes;
+    protected string $cloudflareEmail;
+    protected string $cloudflareDomain;
     public function __construct(
   
     ) {
-        //
+        $this->cloudflareEmail = env('CLOUDFLARE_EMAIL');
+        $this->cloudflareDomain = env('CLOUDFLARE_DOMAIN');
     }
 
     public function provision(Server $server): void
@@ -30,33 +32,26 @@ class ServerProvisionService
 
         $cloudflareApiToken = env('CLOUDFLARE_API_TOKEN');
 
+        if (empty($cloudflareApiToken)) {
+            throw new \RuntimeException('Cloudflare API token is not configured. Please set CLOUDFLARE_API_TOKEN in your .env file.');
+        }
+
+
+        $job = [];
+
+        $server->appendNote("Provisioning server");
+        $job[] = new StartProvisioningJob($server->id);
+        $job[] = new UpdateServerPackageJob($server->id);
+        $job[] = new InstallNecesseryPackagesJob($server->id);
+        $job[] = new InstallDockerJob($server->id);
+        $job[] = new UpdateServerFirewallJob($server->id);
+        $job[] = new InstallAndSetupTraefikJob($server->id, $cloudflareApiToken, $this->cloudflareEmail, $this->cloudflareDomain);
         // Dispatch job chain
-        Bus::chain([
-            new StartProvisioningJob($server),
-            new UpdateServerPackageJob($server),
-            new InstallNecesseryPackagesJob($server),
-            new InstallDockerJob($server),
-            new UpdateServerFirewallJob($server),
-            new InstallAndSetupTraefikJob($server, $cloudflareApiToken),
+        Bus::chain($job)->onQueue('default')->dispatch();
 
-        ])->onQueue('default')->dispatch();
+        $server->appendNote("Server provisioning job chain dispatched");
+        $server->appendNote("Cloudflare API token: ********");
 
-        $server->notes = $this->appendToNotes(
-            $server->notes,
-            sprintf("[%s] Server provisioning job chain dispatched", now()->toDateTimeString())
-        );
-        
-        
-
-        $server->notes = $this->appendToNotes(
-            $server->notes,
-            sprintf("[%s] Server provisioning job chain dispatched", now()->toDateTimeString())
-        );
-
-        Log::info('Server provisioning job chain dispatched', [
-            'server_id' => $server->id,
-            'ip_address' => $server->ip_address,
-        ]);
 
 
 

@@ -4,9 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Traits\NotesAccessor;
 
 class Server extends Model
 {
+    use NotesAccessor;
+
     protected $fillable = [
         'name',
         'ip_address',
