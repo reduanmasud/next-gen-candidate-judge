@@ -6,6 +6,7 @@ use App\Models\Task;
 use App\Models\TaskUserLock;
 use App\Models\UserTaskAttempt;
 use App\Models\UserTaskAttemptAnswer;
+use App\Services\JudgeServices\AiJudgeService;
 use App\Services\JudgeServices\QuizJudgeService;
 use App\Services\JudgeServices\TextJudgeService;
 use App\Services\WorkspaceService;
@@ -508,6 +509,92 @@ class UserTaskController extends Controller
                 'locked' => $result['should_lock'] || $shouldLockDueToSuccess,
                 'locked_due_to_success' => $shouldLockDueToSuccess,
             ]);
+        } elseif ($task->judge_type === 'AiJudge') {
+            $judgeService = new AiJudgeService();
+            $result = $judgeService->evaluate($task, $attempt, $answers);
+
+            // Save the attempt answer
+            UserTaskAttemptAnswer::create([
+                'user_task_attempt_id' => $attempt->id,
+                'answers' => json_encode($answers),
+                'score' => $result['score'],
+                'notes' => $this->formatResultNotes($result),
+            ]);
+
+            // Update the attempt
+            $attempt->update([
+                'status' => 'completed',
+                'completed_at' => now(),
+                'score' => $result['score'],
+            ]);
+
+            // Add note to attempt with scoring details
+            $noteMessage = sprintf(
+                "Attempt #%d completed. Score: %.2f/%.2f (%.1f%%). Correct answers: %d/%d.",
+                $result['attempt_number'],
+                $result['score'],
+                $result['max_score'],
+                ($result['score'] / $task->score) * 100,
+                $result['correct_count'],
+                $result['total_count']
+            );
+            $attempt->appendNote($noteMessage);
+
+            // Check if all answers are correct (100% success)
+            $allCorrect = $result['correct_count'] === $result['total_count'];
+            $shouldLockDueToSuccess = false;
+
+            if ($allCorrect) {
+                // Lock the task immediately when user gets 100% correct
+                TaskUserLock::firstOrCreate(
+                    [
+                        'task_id' => $task->id,
+                        'user_id' => $user->id,
+                    ],
+                    [
+                        'reason' => sprintf(
+                            'Task completed successfully with all answers correct (%d/%d) on attempt #%d. Score: %.2f/%.2f points.',
+                            $result['correct_count'],
+                            $result['total_count'],
+                            $result['attempt_number'],
+                            $result['score'],
+                            $result['max_score']
+                        ),
+                    ]
+                );
+
+                $attempt->appendNote(sprintf(
+                    'Task completed successfully! All answers correct (%d/%d). Task has been locked.',
+                    $result['correct_count'],
+                    $result['total_count']
+                ));
+
+                $shouldLockDueToSuccess = true;
+            } elseif ($result['should_lock']) {
+                // Lock due to penalty threshold (too many failed attempts)
+                TaskUserLock::create([
+                    'task_id' => $task->id,
+                    'user_id' => $user->id,
+                    'reason' => sprintf(
+                        'Task locked: Next attempt\'s maximum possible score (%.2f points) would be below 20%% threshold (%.2f points required)',
+                        $result['next_attempt_max_score'],
+                        $task->score * 0.2
+                    ),
+                ]);
+
+                $attempt->appendNote(sprintf(
+                    'Task has been locked. Next attempt would have a maximum possible score of %.2f points, which is below the 20%% threshold (%.2f points).',
+                    $result['next_attempt_max_score'],
+                    $task->score * 0.2
+                ));
+            }
+
+            return response()->json([
+                'success' => true,
+                'result' => $result,
+                'locked' => $result['should_lock'] || $shouldLockDueToSuccess,
+                'locked_due_to_success' => $shouldLockDueToSuccess,
+            ]);
         }
 
         return response()->json([
@@ -529,6 +616,22 @@ class UserTaskController extends Controller
                 $index + 1,
                 $status
             );
+
+            // Include AI feedback if available
+            if (isset($detail['feedback'])) {
+                $notes .= sprintf(
+                    "  Feedback: %s\n",
+                    $detail['feedback']
+                );
+            }
+
+            // Include AI score if available
+            if (isset($detail['score'])) {
+                $notes .= sprintf(
+                    "  Score: %.2f/1.00\n",
+                    $detail['score']
+                );
+            }
         }
 
         $notes .= sprintf(
