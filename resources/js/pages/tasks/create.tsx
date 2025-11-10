@@ -115,7 +115,8 @@ export default function CreateTask({ servers = [] as { id: number; name: string;
 
     // AI Judge handlers
     const addAiJudge = () => {
-        setData('ai_judges', [...data.ai_judges, { prompt: '', question: '', answer: '' }]);
+        const defaultPrompt = "You are an expert evaluator. Evaluate student answers fairly and provide constructive feedback.";
+        setData('ai_judges', [...data.ai_judges, { prompt: defaultPrompt, question: '', answer: '' }]);
     };
 
     const removeAiJudge = (index: number) => {
