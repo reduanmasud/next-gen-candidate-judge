@@ -12,6 +12,7 @@ import { SharedData } from '@/types';
 import { Clock, Key, Terminal } from 'lucide-react';
 import WorkspaceProgressTracker from '@/components/WorkspaceProgressTracker';
 import SubmissionResultModal from '@/components/SubmissionResultModal';
+import QuizProgressModal from '@/components/QuizProgressModal';
 import axios from 'axios';
 
 type JudgeType = 'none' | 'AiJudge' | 'QuizJudge' | 'TextJudge' | 'AutoJudge' | null;
@@ -108,6 +109,9 @@ export default function UserTaskWorkspace({ task, attempt, workspace, metadata, 
     const [showResultModal, setShowResultModal] = useState(false);
     const [submissionResult, setSubmissionResult] = useState<any>(null);
     const [isTaskLocked, setIsTaskLocked] = useState(false);
+
+    // Progress modal state (for quiz/text submissions)
+    const [showProgressModal, setShowProgressModal] = useState(false);
 
     // Poll for status updates when attempt is pending
     useEffect(() => {
@@ -222,7 +226,14 @@ export default function UserTaskWorkspace({ task, attempt, workspace, metadata, 
             if (response.data.success) {
                 setSubmissionResult(response.data.result);
                 setIsTaskLocked(response.data.locked);
-                setShowResultModal(true);
+
+                // Show progress modal for QuizJudge and TextJudge
+                if (task.judge_type === 'QuizJudge' || task.judge_type === 'TextJudge') {
+                    setShowProgressModal(true);
+                } else {
+                    // For other judge types, show the regular result modal
+                    setShowResultModal(true);
+                }
             }
         } catch (error: any) {
             console.error('Submission error:', error);
@@ -485,6 +496,13 @@ export default function UserTaskWorkspace({ task, attempt, workspace, metadata, 
                 }}
                 result={submissionResult}
                 locked={isTaskLocked}
+                taskScore={task.score}
+            />
+
+            {/* Quiz Progress Modal */}
+            <QuizProgressModal
+                open={showProgressModal}
+                result={submissionResult}
                 taskScore={task.score}
             />
         </AppLayout>
