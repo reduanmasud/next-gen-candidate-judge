@@ -3,56 +3,82 @@
 namespace App\Services\JudgeServices;
 
 use App\Contracts\JudgeInterface;
-use App\Interfaces\SolutionCheckerInterface;
 use App\Models\Task;
 use App\Models\UserTaskAttempt;
 
 class QuizJudgeService implements JudgeInterface
 {
-
+    /**
+     * Evaluate the user's quiz answers against the correct answers.
+     *
+     * @param Task $task
+     * @param UserTaskAttempt $attempt
+     * @param array $answers Format: ['question_id' => 'answer_id', ...]
+     * @return array
+     */
     public function evaluate(Task $task, UserTaskAttempt $attempt, array $answers): array
     {
-   
-            $task->load('quizJudges.quizQuestionAnswers');
-            $quizJudges = $task->quizJudges;
+        // Load quiz judges with their questions and answers
+        $task->load('quizJudges.quizQuestionAnswers');
+        $quizJudges = $task->quizJudges;
 
-            if ($quizJudges->isEmpty()) {
-                throw new \Exception('No quiz judge questions found for this task');
+        if ($quizJudges->isEmpty()) {
+            throw new \Exception('No quiz judge questions found for this task');
+        }
+
+        $totalQuestions = $quizJudges->count();
+        $correctCount = 0;
+        $details = [];
+
+        // Evaluate each question
+        foreach ($quizJudges as $quizJudge) {
+            $questionId = $quizJudge->id;
+            $correctAnswer = $quizJudge->quizQuestionAnswers->where('is_correct', true)->first();
+            $userAnswer = isset($answers[$questionId]) ? (int) $answers[$questionId] : null;
+
+            // Check if user's answer matches the correct answer
+            $isCorrect = $correctAnswer && $userAnswer === $correctAnswer->id;
+
+            if ($isCorrect) {
+                $correctCount++;
             }
 
-            $totalQuestions = $quizJudges->count();
-            $correctAnswers = 0;
-            $correctUserAnswers = 0;
-            $details = [];
-
-            foreach ($quizJudges as $quizJudge) {
-                $questionId = $quizJudge->id;
-                $correctAnswer = $quizJudge->quizQuestionAnswers->where('is_correct', true)->first();
-                $userAnswer = isset($answers[$questionId]) ? (int) $answers[$questionId] : null;
-
-                if ($correctAnswer && $userAnswer === $correctAnswer->id) {
-                    $correctUserAnswers++;
-                }
-
-                $details[] = [
-                    'question_id' => $questionId,
-                    'question' => json_decode($quizJudge->questions, true),
-                    'user_answer' => $userAnswer,
-                    // 'correct_answer' => $correctAnswer ? $correctAnswer->choice : null,
-                    'is_correct' => $correctAnswer && $userAnswer === $correctAnswer->id,
-                ];
-            }   
-
-            return [
-                'score' => ($correctUserAnswers / $totalQuestions) * $attempt->task->score,
-                'max_score' => $attempt->task->score,
-                'correct_count' => $correctUserAnswers,
-                'total_count' => $totalQuestions,
-                'details' => $details,
-                'should_lock' => $this->shouldLock($task, $attempt, 0.2),
-                'next_attempt_max_score' => $attempt->task->score,
-                'attempt_number' => $attempt->attempt_number,
+            // Do NOT include correct_answer in the details sent to frontend
+            // Users should only see if they were correct or not, not the actual answer
+            $details[] = [
+                'question_id' => $questionId,
+                'question' => json_decode($quizJudge->questions, true),
+                'user_answer' => $userAnswer,
+                'is_correct' => $isCorrect,
             ];
+        }
+
+        // Calculate the score with attempt penalty
+        $attemptNumber = $this->getAttemptNumber($task, $attempt);
+        $maxPossibleScore = $this->calculateMaxScore($task->score, $attemptNumber);
+
+        // Calculate actual score based on correct answers
+        $scorePerQuestion = $maxPossibleScore / $totalQuestions;
+        $actualScore = $correctCount * $scorePerQuestion;
+
+        // Calculate what the max score would be for the NEXT attempt
+        $nextAttemptNumber = $attemptNumber + 1;
+        $nextAttemptMaxScore = $this->calculateMaxScore($task->score, $nextAttemptNumber);
+
+        // Task should be locked if the next attempt's max possible score is below 20% threshold
+        $lockingThreshold = $task->score * 0.2;
+        $shouldLock = $nextAttemptMaxScore < $lockingThreshold;
+
+        return [
+            'score' => round($actualScore, 2),
+            'max_score' => round($maxPossibleScore, 2),
+            'correct_count' => $correctCount,
+            'total_count' => $totalQuestions,
+            'details' => $details,
+            'should_lock' => $shouldLock,
+            'next_attempt_max_score' => round($nextAttemptMaxScore, 2),
+            'attempt_number' => $attemptNumber,
+        ];
     }
 
 
@@ -88,23 +114,6 @@ class QuizJudgeService implements JudgeInterface
 
         return ($taskScore * $maxPercentage) / 100;
     }
-
-    /**
-     * Determine if the task should be locked based on the attempt number.
-     *
-     * @param Task $task
-     * @param UserTaskAttempt $attempt
-     * @return bool
-     */
-    public function shouldLock(Task $task, UserTaskAttempt $attempt, Int $threshold): bool
-    {
-        $attemptNumber = $this->getAttemptNumber($task, $attempt);
-        $nextAttemptNumber = $attemptNumber + 1;
-        $nextAttemptMaxScore = $this->calculateMaxScore($task->score, $nextAttemptNumber);
-        $lockingThreshold = $task->score * $threshold;
-
-        return $nextAttemptMaxScore < $lockingThreshold;
-    }   
 }
 
 
