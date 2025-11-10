@@ -23,13 +23,15 @@ class UpdateServerPackageJob extends BaseScriptJob
 
         $this->server = Server::find($this->serverId);
 
+        // Update progress: job started
+        $this->server->addMeta(['current_step' => 'updating_packages']);
         $this->server->appendNote("Updating server packages");
 
         try {
 
             $script = ScriptDescriptor::make(
-                template: 'scripts.server.update_server_packages', 
-                data:[], 
+                template: 'scripts.server.update_server_packages',
+                data:[],
                 name:'Update Server Packages '.$this->server->ip_address
             );
 
@@ -47,6 +49,9 @@ class UpdateServerPackageJob extends BaseScriptJob
             }
 
             $this->server->appendNote("Server packages updated");
+
+            // Update progress: job completed
+            $this->server->addMeta(['current_step' => 'updating_packages_completed']);
         } catch (Throwable $e) {
             $this->server->update(['status' => 'failed']);
             $jobRun->update([
@@ -57,6 +62,7 @@ class UpdateServerPackageJob extends BaseScriptJob
             ]);
 
             $this->server->appendNote("Failed to update server packages: ".$e->getMessage());
+            $this->server->addMeta(['current_step' => 'failed', 'failed_step' => 'updating_packages']);
 
             throw $e; // Re-throw to stop the chain
         }

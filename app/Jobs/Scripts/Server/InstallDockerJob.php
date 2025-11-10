@@ -20,13 +20,16 @@ class InstallDockerJob extends BaseScriptJob
     public function handle(ScriptEngine $engine): void
     {
         $this->server = Server::find($this->serverId);
+
+        // Update progress: job started
+        $this->server->addMeta(['current_step' => 'installing_docker']);
         $this->server->appendNote("Installing docker");
 
         try {
 
             $script = ScriptDescriptor::make(
-                template: 'scripts.server.install_docker', 
-                data:[], 
+                template: 'scripts.server.install_docker',
+                data:[],
                 name:'Install Docker '.$this->server->ip_address
             );
 
@@ -44,6 +47,9 @@ class InstallDockerJob extends BaseScriptJob
             }
 
             $this->server->appendNote("Docker installed");
+
+            // Update progress: job completed
+            $this->server->addMeta(['current_step' => 'installing_docker_completed']);
         } catch (Throwable $e) {
             $this->server->update(['status' => 'failed']);
             $jobRun->update([
@@ -54,6 +60,7 @@ class InstallDockerJob extends BaseScriptJob
             ]);
 
             $this->server->appendNote("Failed to install docker: ".$e->getMessage());
+            $this->server->addMeta(['current_step' => 'failed', 'failed_step' => 'installing_docker']);
 
             throw $e; // Re-throw to stop the chain
         }

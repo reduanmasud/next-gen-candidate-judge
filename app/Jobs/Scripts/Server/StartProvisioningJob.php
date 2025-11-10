@@ -31,11 +31,15 @@ class StartProvisioningJob extends BaseScriptJob
         // Update server status
         $this->server->update(['status' => 'provisioning']);
         $this->server->appendNote("Server provisioning started");
+
+        // Update progress: job started
+        $this->server->addMeta(['current_step' => 'starting_provision']);
+
         try {
 
             $script = ScriptDescriptor::make(
-                template: 'scripts.server.start_server_provision', 
-                data:[], 
+                template: 'scripts.server.start_server_provision',
+                data:[],
                 name:'Start Provisioning '.$this->server->ip_address
             );
 
@@ -52,6 +56,8 @@ class StartProvisioningJob extends BaseScriptJob
                 throw new RuntimeException('Failed to start provisioning: ' . ($result['error_output'] ?? $result['output'] ?? 'Unknown error'));
             }
 
+            // Update progress: job completed
+            $this->server->addMeta(['current_step' => 'starting_provision_completed']);
 
         } catch (Throwable $e) {
             $jobRun->update([
@@ -63,6 +69,7 @@ class StartProvisioningJob extends BaseScriptJob
 
             $this->server->appendNote("Failed to start provisioning: ".$e->getMessage());
             $this->server->update(['status' => 'failed']);
+            $this->server->addMeta(['current_step' => 'failed', 'failed_step' => 'starting_provision']);
 
             throw $e; // Re-throw to stop the chain
         }

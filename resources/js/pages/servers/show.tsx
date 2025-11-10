@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import {
     Card,
     CardContent,
@@ -11,6 +11,8 @@ import {
 } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Server, Calendar, User, Network } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import ServerProvisionProgressTracker from '@/components/ServerProvisionProgressTracker';
 
 interface ServerType {
     id: number;
@@ -27,9 +29,12 @@ interface ServerType {
 
 interface ServerShowProps {
     server: ServerType;
+    metadata?: Record<string, any>;
 }
 
-export default function ServerShow({ server }: ServerShowProps) {
+export default function ServerShow({ server, metadata }: ServerShowProps) {
+    const [currentStep, setCurrentStep] = useState<string | null>(metadata?.current_step || null);
+
     const breadcrumbs: BreadcrumbItem[] = [
         {
             title: 'Servers',
@@ -40,6 +45,27 @@ export default function ServerShow({ server }: ServerShowProps) {
             href: `/servers/${server.id}`,
         },
     ];
+
+    // Poll for status updates when server is provisioning
+    useEffect(() => {
+        if (server.status !== 'provisioning') return;
+
+        const pollInterval = setInterval(() => {
+            fetch(`/servers/${server.id}/status`)
+                .then(res => res.json())
+                .then(data => {
+                    setCurrentStep(data.current_step);
+
+                    // If status changed, reload the page to get updated server data
+                    if (data.status !== 'provisioning') {
+                        router.reload({ only: ['server', 'metadata'] });
+                    }
+                })
+                .catch(err => console.error('Failed to fetch status:', err));
+        }, 2000); // Poll every 2 seconds
+
+        return () => clearInterval(pollInterval);
+    }, [server.id, server.status]);
 
     const getStatusBadge = (status: string) => {
         const statusConfig: Record<string, { label: string; className: string }> = {
@@ -76,20 +102,42 @@ export default function ServerShow({ server }: ServerShowProps) {
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={server.name} />
 
-            <div className="flex h-full flex-1 flex-col gap-4 overflow-x-auto rounded-xl p-4">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-2xl font-semibold">{server.name}</h1>
-                        <p className="text-sm text-muted-foreground">
-                            Server provisioning details
-                        </p>
-                    </div>
-                    <Button variant="outline" asChild>
-                        <Link href="/servers">Back to Servers</Link>
-                    </Button>
-                </div>
+            <div className="flex h-full flex-1 flex-col gap-4 overflow-auto p-4">
+                {server.status === 'provisioning' ? (
+                    <div className="flex h-full w-full items-center justify-center">
+                        <div className="flex w-full max-w-lg flex-col gap-6 rounded-lg border bg-card px-8 py-8 shadow-lg">
+                            <div className="text-center">
+                                <p className="text-xl font-bold mb-2">
+                                    {server.name}
+                                </p>
+                                <p className="text-lg font-semibold">
+                                    Provisioning your server…
+                                </p>
+                                <p className="mt-1 text-sm text-muted-foreground">
+                                    Setting up Docker and required dependencies. This may take several minutes.
+                                </p>
+                            </div>
 
-                <div className="grid gap-4 lg:grid-cols-3">
+                            <Separator />
+
+                            <ServerProvisionProgressTracker currentStep={currentStep} />
+                        </div>
+                    </div>
+                ) : (
+                    <>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h1 className="text-2xl font-semibold">{server.name}</h1>
+                                <p className="text-sm text-muted-foreground">
+                                    Server provisioning details
+                                </p>
+                            </div>
+                            <Button variant="outline" asChild>
+                                <Link href="/servers">Back to Servers</Link>
+                            </Button>
+                        </div>
+
+                        <div className="grid gap-4 lg:grid-cols-3">
                     <div className="lg:col-span-2">
                         <Card className="rounded-xl">
                             <CardHeader>
@@ -182,8 +230,10 @@ export default function ServerShow({ server }: ServerShowProps) {
                                 )}
                             </CardContent>
                         </Card>
+                        </div>
                     </div>
-                </div>
+                </>
+                )}
             </div>
         </AppLayout>
     );

@@ -20,13 +20,16 @@ class InstallNecesseryPackagesJob extends BaseScriptJob
     public function handle(ScriptEngine $engine): void
     {
         $this->server = Server::find($this->serverId);
+
+        // Update progress: job started
+        $this->server->addMeta(['current_step' => 'installing_packages']);
         $this->server->appendNote("Installing necessery packages");
 
         try {
 
             $script = ScriptDescriptor::make(
-                template: 'scripts.server.install_necessery_packages', 
-                data:[], 
+                template: 'scripts.server.install_necessery_packages',
+                data:[],
                 name:'Install Necessery Packages '.$this->server->ip_address
             );
 
@@ -44,6 +47,9 @@ class InstallNecesseryPackagesJob extends BaseScriptJob
             }
 
             $this->server->appendNote("Necessery packages installed");
+
+            // Update progress: job completed
+            $this->server->addMeta(['current_step' => 'installing_packages_completed']);
         } catch (Throwable $e) {
             $this->server->update(['status' => 'failed']);
             $jobRun->update([
@@ -54,6 +60,7 @@ class InstallNecesseryPackagesJob extends BaseScriptJob
             ]);
 
             $this->server->appendNote("Failed to install necessery packages: ".$e->getMessage());
+            $this->server->addMeta(['current_step' => 'failed', 'failed_step' => 'installing_packages']);
 
             throw $e; // Re-throw to stop the chain
         }

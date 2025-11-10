@@ -65,8 +65,8 @@ class ServerProvisionController extends Controller
         try {
             $this->provisionService->provision($server, $validated['ssh_username'], $validated['ssh_password']);
 
-            return redirect()->route('servers.index')
-                ->with('success', 'Server provisioned successfully');
+            return redirect()->route('servers.show', $server)
+                ->with('success', 'Server provisioning started. You can monitor the progress below.');
         } catch (\Exception $e) {
             return redirect()->back()
                 ->withErrors(['ssh_password' => 'Failed to provision server: ' . $e->getMessage()])
@@ -83,6 +83,23 @@ class ServerProvisionController extends Controller
 
         return Inertia::render('servers/show', [
             'server' => $server,
+            'metadata' => $server->getAllMeta(),
+        ]);
+    }
+
+    /**
+     * Get real-time status (for polling)
+     */
+    public function status(Server $server)
+    {
+        // Get metadata from server
+        $metadata = $server->getAllMeta();
+
+        return response()->json([
+            'status' => $server->status,
+            'provisioned_at' => optional($server->provisioned_at)->toIso8601String(),
+            'metadata' => $metadata,
+            'current_step' => $metadata['current_step'] ?? null,
         ]);
     }
 }
