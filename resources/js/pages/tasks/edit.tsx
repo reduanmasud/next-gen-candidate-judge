@@ -64,6 +64,7 @@ interface Task {
     docker_compose_yaml: string;
     score: number;
     is_active: boolean;
+    server_id?: number | null;
     pre_script?: string;
     post_script?: string;
     judge_type?: JudgeType;
@@ -80,9 +81,10 @@ interface Task {
 
 interface EditTaskProps {
     task: Task;
+    servers?: { id: number; name: string; ip_address: string }[];
 }
 
-export default function EditTask({ task }: EditTaskProps) {
+export default function EditTask({ task, servers = [] }: EditTaskProps) {
     const breadcrumbs: BreadcrumbItem[] = [
         {
             title: 'Tasks',
@@ -104,6 +106,7 @@ export default function EditTask({ task }: EditTaskProps) {
         docker_compose_yaml: task.docker_compose_yaml,
         score: task.score,
         is_active: task.is_active,
+        server_id: (task.server_id || '') as number | '',
         pre_script: task.pre_script || '',
         post_script: task.post_script || '',
         judge_type: (task.judge_type || '') as JudgeType,
@@ -640,6 +643,38 @@ export default function EditTask({ task }: EditTaskProps) {
                                         </span>
                                     </div>
                                     <InputError message={errors.is_active} />
+                                </div>
+
+                                <Separator />
+
+                                {/* Server Selection */}
+                                <div className="space-y-2">
+                                    <Label htmlFor="server_id">
+                                        Target Server {data.sandbox ? '(required for sandbox)' : '(optional)'}
+                                    </Label>
+                                    <select
+                                        id="server_id"
+                                        className="w-full rounded-md border bg-background p-2 text-sm"
+                                        value={data.server_id as any}
+                                        onChange={(e) => setData('server_id', e.target.value ? Number(e.target.value) : '')}
+                                        required={data.sandbox}
+                                    >
+                                        <option value="">
+                                            {data.sandbox ? 'Select a server...' : 'Local (default)'}
+                                        </option>
+                                        {servers.map((s) => (
+                                            <option key={s.id} value={s.id}>
+                                                {s.name} ({s.ip_address})
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <p className="text-xs text-muted-foreground">
+                                        {data.sandbox
+                                            ? 'A provisioned server is required to run sandbox tasks.'
+                                            : 'Choose a provisioned server to run this task on, or leave empty for local.'
+                                        }
+                                    </p>
+                                    <InputError message={errors.server_id} />
                                 </div>
 
                                 <Separator />

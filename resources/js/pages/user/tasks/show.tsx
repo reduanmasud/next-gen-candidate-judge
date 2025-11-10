@@ -532,8 +532,12 @@ export default function UserTaskWorkspace({ task, attempt, workspace, metadata, 
         }
 
         // For other judge types, judgeData is required
-        if (!judgeData) {
-            return null;
+        if (!judgeData || judgeData.length === 0) {
+            return (
+                <div className="text-sm text-muted-foreground text-center py-4">
+                    No questions configured for this task. Please contact an administrator.
+                </div>
+            );
         }
 
         if (task.judge_type === 'AiJudge') {

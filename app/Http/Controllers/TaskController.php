@@ -85,6 +85,22 @@ class TaskController extends Controller
             'judge_script' => 'nullable|string',
         ]);
 
+        // Validate that judge configurations are provided when judge_type is set
+        if (!empty($validated['judge_type'])) {
+            if ($validated['judge_type'] === 'AiJudge' && empty($validated['ai_judges'])) {
+                return back()->withErrors(['ai_judges' => 'At least one AI judge entry is required when AI Judge type is selected.'])->withInput();
+            }
+            if ($validated['judge_type'] === 'QuizJudge' && empty($validated['quiz_questions'])) {
+                return back()->withErrors(['quiz_questions' => 'At least one quiz question is required when Quiz Judge type is selected.'])->withInput();
+            }
+            if ($validated['judge_type'] === 'TextJudge' && empty($validated['text_judges'])) {
+                return back()->withErrors(['text_judges' => 'At least one text judge entry is required when Text Judge type is selected.'])->withInput();
+            }
+            if ($validated['judge_type'] === 'AutoJudge' && empty($validated['judge_script'])) {
+                return back()->withErrors(['judge_script' => 'Judge script is required when Auto Judge type is selected.'])->withInput();
+            }
+        }
+
         DB::beginTransaction();
         try {
             $task = new Task($validated);
@@ -131,8 +147,15 @@ class TaskController extends Controller
         // Load judge configurations
         $task = $this->loadJudgeConfigurations($task);
 
+        // Get available servers for selection
+        $servers = \App\Models\Server::query()
+            ->where('status', 'provisioned')
+            ->orderBy('name')
+            ->get(['id','name','ip_address']);
+
         return Inertia::render('tasks/edit', [
             'task' => $task,
+            'servers' => $servers,
         ]);
     }
 
@@ -173,6 +196,22 @@ class TaskController extends Controller
             'text_judges.*.answer' => 'required_with:text_judges|string',
             'judge_script' => 'nullable|string',
         ]);
+
+        // Validate that judge configurations are provided when judge_type is set
+        if (!empty($validated['judge_type'])) {
+            if ($validated['judge_type'] === 'AiJudge' && empty($validated['ai_judges'])) {
+                return back()->withErrors(['ai_judges' => 'At least one AI judge entry is required when AI Judge type is selected.'])->withInput();
+            }
+            if ($validated['judge_type'] === 'QuizJudge' && empty($validated['quiz_questions'])) {
+                return back()->withErrors(['quiz_questions' => 'At least one quiz question is required when Quiz Judge type is selected.'])->withInput();
+            }
+            if ($validated['judge_type'] === 'TextJudge' && empty($validated['text_judges'])) {
+                return back()->withErrors(['text_judges' => 'At least one text judge entry is required when Text Judge type is selected.'])->withInput();
+            }
+            if ($validated['judge_type'] === 'AutoJudge' && empty($validated['judge_script'])) {
+                return back()->withErrors(['judge_script' => 'Judge script is required when Auto Judge type is selected.'])->withInput();
+            }
+        }
 
         DB::beginTransaction();
         try {
