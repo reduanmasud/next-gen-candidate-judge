@@ -13,6 +13,7 @@ import { Clock, Key, Terminal } from 'lucide-react';
 import WorkspaceProgressTracker from '@/components/WorkspaceProgressTracker';
 import SubmissionResultModal from '@/components/SubmissionResultModal';
 import QuizProgressModal from '@/components/QuizProgressModal';
+import AiJudgeProgressModal from '@/components/AiJudgeProgressModal';
 import axios from 'axios';
 
 type JudgeType = 'none' | 'AiJudge' | 'QuizJudge' | 'TextJudge' | 'AutoJudge' | null;
@@ -112,6 +113,9 @@ export default function UserTaskWorkspace({ task, attempt, workspace, metadata, 
 
     // Progress modal state (for quiz/text submissions)
     const [showProgressModal, setShowProgressModal] = useState(false);
+
+    // AI Judge progress modal state
+    const [showAiProgressModal, setShowAiProgressModal] = useState(false);
 
     // Poll for status updates when attempt is pending
     useEffect(() => {
@@ -230,6 +234,9 @@ export default function UserTaskWorkspace({ task, attempt, workspace, metadata, 
                 // Show progress modal for QuizJudge and TextJudge
                 if (task.judge_type === 'QuizJudge' || task.judge_type === 'TextJudge') {
                     setShowProgressModal(true);
+                } else if (task.judge_type === 'AiJudge') {
+                    // Show AI progress modal for AiJudge
+                    setShowAiProgressModal(true);
                 } else {
                     // For other judge types, show the regular result modal
                     setShowResultModal(true);
@@ -502,6 +509,13 @@ export default function UserTaskWorkspace({ task, attempt, workspace, metadata, 
             {/* Quiz Progress Modal */}
             <QuizProgressModal
                 open={showProgressModal}
+                result={submissionResult}
+                taskScore={task.score}
+            />
+
+            {/* AI Judge Progress Modal */}
+            <AiJudgeProgressModal
+                open={showAiProgressModal}
                 result={submissionResult}
                 taskScore={task.score}
             />
