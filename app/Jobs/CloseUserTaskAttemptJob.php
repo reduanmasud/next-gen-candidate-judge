@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Enums\AttemptTaskStatus;
 use App\Jobs\Scripts\Workspace\DeleteWorkspaceJob;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -29,16 +30,16 @@ class CloseUserTaskAttemptJob implements ShouldQueue
     public function handle(): void
     {
         $this->attempt->update([
-            'status' => 'failed',
+            'status' => AttemptTaskStatus::TERMINATED,
             'completed_at' => now(),
         ]);
 
-        $this->attempt->appendNote("Attempt closed By Timeout.");
+        $this->attempt->appendNote("Attempt closed by timeout");
 
 
         if($this->attempt->task->sandbox)
         {
-            DeleteWorkspaceJob::dispatch($this->attempt, $this->attempt->task->server);
+            DeleteWorkspaceJob::dispatch($this->attempt->id, $this->attempt->task->server->id);
         }
 
         
