@@ -75,7 +75,5 @@ class CreateUserJob extends BaseWorkspaceJob
         }
     }
 
-    // Uses BaseWorkspaceJob::failed() and HandlesScriptExecution::appendToNotes()
-
 }
 

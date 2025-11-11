@@ -78,6 +78,5 @@ class SetDockerComposeJob extends BaseWorkspaceJob
         }
     }
 
-    // Uses BaseWorkspaceJob::failed() and HandlesScriptExecution::appendToNotes()
 }
 
