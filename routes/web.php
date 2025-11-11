@@ -19,6 +19,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/jobs', [ScriptJobRunController::class, 'index'])->name('jobs.index');
     Route::get('/jobs/{jobRun}', [ScriptJobRunController::class, 'show'])->name('jobs.show');
     Route::get('/jobs/{jobRun}/status', [ScriptJobRunController::class, 'status'])->name('jobs.status');
+    Route::post('/jobs/{jobRun}/rerun', [ScriptJobRunController::class, 'rerun'])->name('jobs.rerun');
 });
 
 require __DIR__.'/settings.php';

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\RerunScriptJob;
 use App\Models\ScriptJobRun;
 use App\Services\ScriptJobService;
 use Illuminate\Http\Request;
@@ -58,5 +59,29 @@ class ScriptJobRunController extends Controller
             'script_content' => $jobRun->script_content,
             'completed_at' => $jobRun->completed_at,
         ]);
+    }
+
+    /**
+     * Re-run a job by creating a duplicate and dispatching it to the queue
+     */
+    public function rerun(Request $request, ScriptJobRun $jobRun)
+    {
+        // Create a new job run with the same parameters
+        $newJobRun = ScriptJobRun::create([
+            'script_name' => $jobRun->script_name . ' (Re-run)',
+            'script_path' => $jobRun->script_path,
+            'script_content' => $jobRun->script_content,
+            'status' => 'pending',
+            'user_id' => $request->user()->id,
+            'server_id' => $jobRun->server_id,
+            'task_id' => $jobRun->task_id,
+            'attempt_id' => $jobRun->attempt_id,
+            'metadata' => $jobRun->metadata,
+        ]);
+
+        // Dispatch the job to the queue
+        RerunScriptJob::dispatch($jobRun->id, $newJobRun->id);
+
+        return redirect()->back()->with('success', 'Job queued for re-run');
     }
 }
