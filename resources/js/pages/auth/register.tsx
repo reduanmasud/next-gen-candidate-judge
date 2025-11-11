@@ -57,6 +57,19 @@ export default function Register() {
                                 />
                                 <InputError message={errors.email} />
                             </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="phone">Phone number</Label>
+                                <Input
+                                    id="phone"
+                                    type="tel"
+                                    required
+                                    tabIndex={3}
+                                    autoComplete="tel"
+                                    name="phone"
+                                    placeholder="+1 (555) 000-0000"
+                                />
+                                <InputError message={errors.phone} />
+                            </div>
 
                             <div className="grid gap-2">
                                 <Label htmlFor="password">Password</Label>
