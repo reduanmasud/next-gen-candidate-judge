@@ -9,41 +9,11 @@ use App\Models\Task;
 use App\Scripts\Script;
 use App\Scripts\ScriptDescriptor;
 use App\Services\ScriptWrapper;
+use Illuminate\Support\Facades\Auth;
 
 class ScriptJobService
 {
 
-    public function runScript(Script|ScriptDescriptor $script, ?Task $task = null, ?Server $server = null, ?array $metadata = null, ?string $notes = null): ScriptJobRun
-    {
-        $wrapper = new ScriptWrapper();
-        // Create a minimal job run first, then update with script-specific values so we support both
-        // Script and ScriptDescriptor without calling methods that may not exist on the descriptor.
-        $jobRun = ScriptJobRun::create([
-            'user_id' => $server?->user_id ?? auth()->id(),
-            'server_id' => $server?->id,
-            'task_id' => $task?->id,
-            'status' => 'pending',
-        ]);
-
-        // Support both old Script objects and new ScriptDescriptor
-        if ($script instanceof ScriptDescriptor) {
-            $name = $script->name;
-            $path = $script->template;
-        } else {
-            $name = $script->name();
-            $path = $script->template();
-        }
-
-        // update previously created jobRun with the correct values (ensure compatibility)
-        $jobRun->update([
-            'script_name' => $name,
-            'script_path' => $path,
-        ]);
-
-        ExecuteScriptJob::dispatch($jobRun, $script, $task, $server);
-
-        return $jobRun;
-    }
 
     /**
      * Get job runs with filters
