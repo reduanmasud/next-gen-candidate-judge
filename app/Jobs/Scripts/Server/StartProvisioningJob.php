@@ -7,8 +7,6 @@ use App\Models\ScriptJobRun;
 use App\Models\Server;
 use App\Scripts\ScriptDescriptor;
 use App\Services\ScriptEngine;
-use App\Traits\AppendServerNotes;
-use Illuminate\Support\Facades\Log;
 use RuntimeException;
 use Throwable;
 
