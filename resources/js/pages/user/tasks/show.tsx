@@ -89,6 +89,7 @@ interface UserTaskWorkspaceProps {
 
 const statusLabels: Record<string, string> = {
     pending: 'Preparing',
+    preparing: 'Preparing',
     running: 'In Progress',
     completed: 'Completed',
     failed: 'Failed',
@@ -119,7 +120,7 @@ export default function UserTaskWorkspace({ task, attempt, workspace, metadata, 
 
     // Poll for status updates when attempt is pending
     useEffect(() => {
-        if (attempt.status === 'pending') {
+        if (attempt.status === 'pending' || attempt.status === 'preparing') {
             const interval = setInterval(() => {
                 // Use Inertia's reload to refresh the page data
                 router.reload({ only: ['attempt', 'metadata', 'workspace'] });
@@ -255,7 +256,7 @@ export default function UserTaskWorkspace({ task, attempt, workspace, metadata, 
             <Head title={`${task.title} · Task`} />
 
             <div className="flex h-full flex-1 flex-col gap-4 overflow-auto p-4">
-                {attempt.status === 'pending' ? (
+                {attempt.status === 'pending' || attempt.status === 'preparing' ? (
                     <div className="flex h-full w-full items-center justify-center">
                         <div className="flex w-full max-w-lg flex-col gap-6 rounded-lg border bg-card px-8 py-8 shadow-lg">
                             <div className="text-center">

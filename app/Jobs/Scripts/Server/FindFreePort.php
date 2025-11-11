@@ -3,6 +3,7 @@
 
 namespace App\Jobs\Scripts\Server;
 
+use App\Enums\AttemptTaskStatus;
 use App\Jobs\Scripts\BaseScriptJob;
 use App\Models\ScriptJobRun;
 use App\Models\Server;
@@ -74,7 +75,7 @@ class FindFreePort extends BaseScriptJob
 
         } catch (Throwable $e) {
             $this->attempt->update([
-                'status' => 'failed',
+                'status' => AttemptTaskStatus::FAILED,
                 'failed_at' => now(),
             ]);
             $this->attempt->addMeta(['current_step' => 'failed', 'failed_step' => 'finding_free_port']);

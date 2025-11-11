@@ -2,6 +2,7 @@
 
 namespace App\Jobs\Scripts\Workspace;
 
+use App\Enums\AttemptTaskStatus;
 use App\Models\ScriptJobRun;
 use App\Models\Server;
 use App\Models\UserTaskAttempt;
@@ -66,7 +67,7 @@ class SetSshAccessToContainerJob extends BaseWorkspaceJob
         } catch (Throwable $e) {
 
             $this->attempt->update([
-                'status' => 'failed',
+                'status' => AttemptTaskStatus::FAILED,
                 'failed_at' => now(),
             ]);
 

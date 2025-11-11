@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AttemptTaskStatus;
 use App\Traits\HasMeta;
 use App\Traits\NotesAccessor;
 use Illuminate\Database\Eloquent\Model;
@@ -12,7 +13,7 @@ class UserTaskAttempt extends Model
 {
     use HasMeta;
     use NotesAccessor;
-    
+
     protected $fillable = [
         'user_id',
         'task_id',
@@ -31,6 +32,7 @@ class UserTaskAttempt extends Model
         'started_at' => 'datetime',
         'completed_at' => 'datetime',
         'metadata' => 'array',
+        'status' => AttemptTaskStatus::class,
     ];
 
     public function user(): BelongsTo

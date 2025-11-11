@@ -2,6 +2,7 @@
 
 namespace App\Jobs\Scripts\Workspace;
 
+use App\Enums\AttemptTaskStatus;
 use App\Models\UserTaskAttempt;
 use Throwable;
 
@@ -23,9 +24,9 @@ class FinalizeWorkspaceJob extends BaseWorkspaceJob
             // Update progress: job started
             $this->attempt->addMeta(['current_step' => 'finalizing_workspace']);
 
-            if ($this->attempt->status === 'pending') {
+            if ($this->attempt->status === AttemptTaskStatus::PREPARING) {
                 $this->attempt->update([
-                    'status' => 'running',
+                    'status' => AttemptTaskStatus::RUNNING,
                     'started_at' => now(),
 
                 ]);
@@ -37,7 +38,7 @@ class FinalizeWorkspaceJob extends BaseWorkspaceJob
 
         } catch (Throwable $e) {
             $this->attempt->update([
-                'status' => 'failed',
+                'status' => AttemptTaskStatus::FAILED,
                 'failed_at' => now(),
             ]);
             $this->attempt->addMeta(['current_step' => 'failed', 'failed_step' => 'finalizing_workspace']);

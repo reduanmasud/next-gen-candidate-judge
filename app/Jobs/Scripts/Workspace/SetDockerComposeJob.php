@@ -2,6 +2,7 @@
 
 namespace App\Jobs\Scripts\Workspace;
 
+use App\Enums\AttemptTaskStatus;
 use App\Models\ScriptJobRun;
 use App\Models\UserTaskAttempt;
 use App\Scripts\ScriptDescriptor;
@@ -67,7 +68,7 @@ class SetDockerComposeJob extends BaseWorkspaceJob
 
 
             $this->attempt->update([
-                'status' => 'failed',
+                'status' => AttemptTaskStatus::FAILED,
                 'failed_at' => now(),
             ]);
             $this->attempt->addMeta(['current_step' => 'failed', 'failed_step' => 'setting_docker_compose']);

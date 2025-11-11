@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\AttemptTaskStatus;
 use App\Jobs\CloseUserTaskAttemptJob;
 use App\Jobs\Scripts\Server\FindFreePort;
 use App\Jobs\Scripts\Workspace\CreateUserJob;
@@ -29,7 +30,7 @@ class WorkspaceService
         $attempt = new UserTaskAttempt([
             'user_id' => $user->id,
             'task_id' => $task->id,
-            'status' => 'pending',
+            'status' => AttemptTaskStatus::PREPARING,
         ]);
         $attempt->save();
 
@@ -100,7 +101,7 @@ class WorkspaceService
         else
         {
             // For non-sandbox tasks, mark as running immediately
-            $attempt->status = 'running';
+            $attempt->status = AttemptTaskStatus::RUNNING;
             $attempt->started_at = now();
             $attempt->appendNote("Started non-sandbox task attempt.");
         }

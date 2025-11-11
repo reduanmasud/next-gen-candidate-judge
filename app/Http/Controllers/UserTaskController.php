@@ -2,10 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\AttemptTaskStatus;
+use App\Enums\TaskUserLockStatus;
+use App\Http\Resources\TaskResource;
 use App\Models\Task;
 use App\Models\TaskUserLock;
 use App\Models\UserTaskAttempt;
 use App\Models\UserTaskAttemptAnswer;
+use App\Repositories\TaskRepository;
 use App\Services\JudgeServices\AiJudgeService;
 use App\Services\JudgeServices\QuizJudgeService;
 use App\Services\JudgeServices\TextJudgeService;
@@ -13,6 +17,8 @@ use App\Services\WorkspaceService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Inertia\Response;
 use Inertia\Inertia;
 
@@ -26,74 +32,35 @@ class UserTaskController extends Controller
 
     public function index(): Response
     {
-        $user = auth()->user();
+        $user = Auth::user();
 
-        $tasks = Task::where('is_active', true)
-            ->with(['attempts' => function ($query) use ($user) {
-                $query->where('user_id', $user->id)->latest();
-            }])
-            ->with(['lockedUsers' => function ($query) use ($user) {
-                $query->where('user_id', $user->id);
-            }])
-            ->get()
-            ->map(function ($task) use ($user) {
-                $latestAttempt = $task->attempts->first();
-                $isStarted = in_array(optional($latestAttempt)->status, ['pending', 'running'], true);
-                $isLocked = $task->lockedUsers->isNotEmpty();
-
-                // Count total attempts for this user and task
-                $attemptCount = UserTaskAttempt::where('user_id', $user->id)
-                    ->where('task_id', $task->id)
-                    ->count();
-
-                // Check if task was completed successfully (all questions correct)
-                // A task is completed successfully if:
-                // 1. Latest attempt status is 'completed'
-                // 2. The score equals the maximum possible score for that attempt
-                $isCompletedSuccessfully = false;
-                if (optional($latestAttempt)->status === 'completed') {
-                    $attemptNumber = UserTaskAttempt::where('user_id', $user->id)
-                        ->where('task_id', $task->id)
-                        ->where('id', '<=', $latestAttempt->id)
-                        ->count();
-                    $maxPossibleScore = $this->calculateMaxScore($task->score, $attemptNumber);
-                    $isCompletedSuccessfully = $latestAttempt->score >= $maxPossibleScore;
-                }
-
-                return [
-                    'id' => $task->id,
-                    'title' => $task->title,
-                    'description' => $task->description,
-                    'score' => $task->score,
-                    'is_started' => $isStarted,
-                    'is_completed' => optional($latestAttempt)->status === 'completed',
-                    'is_locked' => $isLocked,
-                    'is_completed_successfully' => $isCompletedSuccessfully,
-                    'attempt_id' => optional($latestAttempt)->id,
-                    'attempt_count' => $attemptCount,
-                    'sandbox' => $task->sandbox,
-                    'allowssh' => $task->allowssh,
-                ];
-            });
+        $tasks = app(TaskRepository::class)->getTasksForUser($user);
 
         return Inertia::render('user/tasks/index', [
-            'tasks' => $tasks,
+            'tasks' => TaskResource::collection($tasks)->resolve(),
         ]);
     }
 
-    public function start(Request $request, Task $task): RedirectResponse
+    public function start(Request $request, Task $task): RedirectResponse|Response
     {
         $user = $request->user();
 
         // Check if task is locked for this user
         if ($task->isLockedForUser($user)) {
+
+            if($task->lockedUsers()->where('user_id', $user->id)->where('status', TaskUserLockStatus::COMPLETED)->exists()) {
+                return redirect()->route('user-tasks.index')
+                    ->with('error', 'You have already completed this task.');
+            }
+
             return redirect()->route('user-tasks.index')
-                ->with('error', 'This task is locked for you. You cannot attempt it again.');
+                ->with('error', 'This task is locked for you. You have reached the maximum number of attempts.');
         }
 
         // Check if the next attempt would have a max score below 20% threshold
         $attemptCount = UserTaskAttempt::where('user_id', $user->id)
             ->where('task_id', $task->id)
+            ->where('status', '!=', AttemptTaskStatus::FAILED)
             ->count();
 
         $nextAttemptNumber = $attemptCount + 1;
@@ -106,6 +73,7 @@ class UserTaskController extends Controller
                 [
                     'task_id' => $task->id,
                     'user_id' => $user->id,
+                    'status' => TaskUserLockStatus::PENALTY,
                 ],
                 [
                     'reason' => sprintf(
@@ -130,12 +98,12 @@ class UserTaskController extends Controller
         $task->loadMissing('server');
 
         // Use database transaction to prevent race condition
-        return \DB::transaction(function () use ($user, $task) {
+        return DB::transaction(function () use ($user, $task) {
             // Lock the row to prevent concurrent attempts
             $existingAttempt = UserTaskAttempt::query()
                 ->where('user_id', $user->id)
                 ->where('task_id', $task->id)
-                ->whereIn('status', ['pending', 'running'])
+                ->whereIn('status', [AttemptTaskStatus::PENDING, AttemptTaskStatus::RUNNING, AttemptTaskStatus::PREPARING])
                 ->lockForUpdate()
                 ->latest('id')
                 ->first();
@@ -156,6 +124,19 @@ class UserTaskController extends Controller
 
         if ($attempt->user_id !== $user->id) {
             abort(403);
+        }
+
+        // If the user is locked, take the user to 404 page
+        if ($attempt->task->isLockedForUser($user)) {
+            abort(404);
+        }
+
+        if($attempt->status === AttemptTaskStatus::TERMINATED || 
+            $attempt->status === AttemptTaskStatus::COMPLETED || 
+            $attempt->status === AttemptTaskStatus::FAILED ||
+            $attempt->status === AttemptTaskStatus::ATTEMPTED_FAILED
+        ) {
+            abort(404);
         }
 
         $attempt->loadMissing('task');
@@ -264,8 +245,8 @@ class UserTaskController extends Controller
         $task = $attempt->task;
 
         // Terminate the current attempt
-        if (in_array($attempt->status, ['pending', 'running'])) {
-            $attempt->status = 'terminated';
+        if (in_array($attempt->status, [AttemptTaskStatus::PENDING, AttemptTaskStatus::RUNNING, AttemptTaskStatus::PREPARING])) {
+            $attempt->status = AttemptTaskStatus::TERMINATED;
             $attempt->completed_at = now();
             $attempt->save();
         }
@@ -314,9 +295,9 @@ class UserTaskController extends Controller
         }
 
         // Verify the attempt is still in progress
-        if ($attempt->status === 'completed') {
+        if ($attempt->status !== AttemptTaskStatus::RUNNING) {
             return response()->json([
-                'error' => 'This attempt has already been completed.',
+                'error' => 'Your are not eligible to submit answers. possible reasons: ' . $attempt->status,
             ], 400);
         }
 
@@ -325,7 +306,7 @@ class UserTaskController extends Controller
         // Verify the task is not locked for this user
         if ($task->isLockedForUser($user)) {
             return response()->json([
-                'error' => 'This task is locked for you.',
+                'error' => 'You are already completed the task or you have reached the maximum number of attempts.',
             ], 403);
         }
 
@@ -351,7 +332,7 @@ class UserTaskController extends Controller
 
             // Update the attempt
             $attempt->update([
-                'status' => 'completed',
+                'status' => AttemptTaskStatus::ATTEMPTED_FAILED,
                 'completed_at' => now(),
                 'score' => $result['score'],
             ]);
@@ -378,6 +359,7 @@ class UserTaskController extends Controller
                     [
                         'task_id' => $task->id,
                         'user_id' => $user->id,
+                        'status' => TaskUserLockStatus::COMPLETED,
                     ],
                     [
                         'reason' => sprintf(
@@ -391,6 +373,10 @@ class UserTaskController extends Controller
                     ]
                 );
 
+                $attempt->update([
+                    'status' => AttemptTaskStatus::COMPLETED,
+                ]);
+
                 $attempt->appendNote(sprintf(
                     'Task completed successfully! All answers correct (%d/%d). Task has been locked.',
                     $result['correct_count'],
@@ -403,6 +389,7 @@ class UserTaskController extends Controller
                 TaskUserLock::create([
                     'task_id' => $task->id,
                     'user_id' => $user->id,
+                    'status' => TaskUserLockStatus::PENALTY,
                     'reason' => sprintf(
                         'Task locked: Next attempt\'s maximum possible score (%.2f points) would be below 20%% threshold (%.2f points required)',
                         $result['next_attempt_max_score'],
@@ -437,7 +424,7 @@ class UserTaskController extends Controller
 
             // Update the attempt
             $attempt->update([
-                'status' => 'completed',
+                'status' => AttemptTaskStatus::ATTEMPTED_FAILED,
                 'completed_at' => now(),
                 'score' => $result['score'],
             ]);
@@ -464,6 +451,7 @@ class UserTaskController extends Controller
                     [
                         'task_id' => $task->id,
                         'user_id' => $user->id,
+                        'status' => TaskUserLockStatus::COMPLETED,
                     ],
                     [
                         'reason' => sprintf(
@@ -477,6 +465,10 @@ class UserTaskController extends Controller
                     ]
                 );
 
+                $attempt->update([
+                    'status' => AttemptTaskStatus::COMPLETED,
+                ]);
+
                 $attempt->appendNote(sprintf(
                     'Task completed successfully! All answers correct (%d/%d). Task has been locked.',
                     $result['correct_count'],
@@ -489,6 +481,7 @@ class UserTaskController extends Controller
                 TaskUserLock::create([
                     'task_id' => $task->id,
                     'user_id' => $user->id,
+                    'status' => TaskUserLockStatus::PENALTY,
                     'reason' => sprintf(
                         'Task locked: Next attempt\'s maximum possible score (%.2f points) would be below 20%% threshold (%.2f points required)',
                         $result['next_attempt_max_score'],
@@ -523,7 +516,7 @@ class UserTaskController extends Controller
 
             // Update the attempt
             $attempt->update([
-                'status' => 'completed',
+                'status' => AttemptTaskStatus::ATTEMPTED_FAILED,
                 'completed_at' => now(),
                 'score' => $result['score'],
             ]);
@@ -550,6 +543,7 @@ class UserTaskController extends Controller
                     [
                         'task_id' => $task->id,
                         'user_id' => $user->id,
+                        'status' => TaskUserLockStatus::COMPLETED,
                     ],
                     [
                         'reason' => sprintf(
@@ -563,6 +557,10 @@ class UserTaskController extends Controller
                     ]
                 );
 
+                $attempt->update([
+                    'status' => AttemptTaskStatus::COMPLETED,
+                ]);
+
                 $attempt->appendNote(sprintf(
                     'Task completed successfully! All answers correct (%d/%d). Task has been locked.',
                     $result['correct_count'],
@@ -575,6 +573,7 @@ class UserTaskController extends Controller
                 TaskUserLock::create([
                     'task_id' => $task->id,
                     'user_id' => $user->id,
+                    'status' => TaskUserLockStatus::PENALTY,
                     'reason' => sprintf(
                         'Task locked: Next attempt\'s maximum possible score (%.2f points) would be below 20%% threshold (%.2f points required)',
                         $result['next_attempt_max_score'],

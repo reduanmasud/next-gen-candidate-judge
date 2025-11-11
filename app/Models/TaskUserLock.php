@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\TaskUserLockStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -11,6 +12,11 @@ class TaskUserLock extends Model
         'task_id',
         'user_id',
         'reason',
+        'status',
+    ];
+
+    protected $casts = [
+        'status' => TaskUserLockStatus::class,
     ];
 
     public function task(): BelongsTo
