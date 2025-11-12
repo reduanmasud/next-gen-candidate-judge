@@ -19,6 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
             Route::middleware('web')->group(base_path('routes/tasks.php'));
             Route::middleware('web')->group(base_path('routes/user-tasks.php'));
             Route::middleware('web')->group(base_path('routes/servers.php'));
+            Route::middleware('web')->group(base_path('routes/users.php'));
         }
     )
     ->withMiddleware(function (Middleware $middleware): void {

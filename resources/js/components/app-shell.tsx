@@ -2,7 +2,7 @@ import { SidebarProvider } from '@/components/ui/sidebar';
 import { Toaster } from '@/components/ui/sonner';
 import { SharedData } from '@/types';
 import { usePage } from '@inertiajs/react';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 
 interface AppShellProps {
@@ -12,22 +12,25 @@ interface AppShellProps {
 
 export function AppShell({ children, variant = 'header' }: AppShellProps) {
     const { sidebarOpen, flash } = usePage<SharedData>().props;
+    const previousFlash = useRef<typeof flash>({});
 
     // Show flash messages
     useEffect(() => {
-        if (flash.success) {
+        if (flash.success && flash.success !== previousFlash.current.success) {
             toast.success(flash.success);
         }
-        if (flash.error) {
+        if (flash.error && flash.error !== previousFlash.current.error) {
             toast.error(flash.error);
         }
-        if (flash.warning) {
+        if (flash.warning && flash.warning !== previousFlash.current.warning) {
             toast.warning(flash.warning);
         }
-        if (flash.info) {
+        if (flash.info && flash.info !== previousFlash.current.info) {
             toast.info(flash.info);
         }
-    }, [flash]);
+
+        previousFlash.current = flash;
+    }, [flash.success, flash.error, flash.warning, flash.info]);
 
     if (variant === 'header') {
         return (
