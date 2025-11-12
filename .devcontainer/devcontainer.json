@@ -9,12 +9,14 @@
 	"customizations": {
 		"vscode": {
 			"extensions": [
-				// "laravel.vscode-laravel",
-				// "mikestead.dotenv",
-				// "amiralizadeh9480.laravel-extra-intellisense",
-				// "ryannaddy.laravel-artisan",
-				// "onecentlin.laravel5-snippets",
-				// "onecentlin.laravel-blade"
+				"laravel.vscode-laravel",
+				"mikestead.dotenv",
+				"amiralizadeh9480.laravel-extra-intellisense",
+				"ryannaddy.laravel-artisan",
+				"Augment.vscode-augment",
+				"eamodio.gitlens",
+				"bmewburn.vscode-intelephense-client",
+				"zobo.php-intellisense"
 			],
 			"settings": {}
 		}
@@ -25,8 +27,13 @@
   ],
 	// Install a few common utilities (sshpass, openssh-client which provides scp, curl, wget, git, unzip, jq)
 	// Run as non-interactive and leave permissions as before. This runs inside the created container.
-	"postCreateCommand": "export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -y --no-install-recommends sshpass openssh-client curl wget git unzip jq ca-certificates gnupg && apt-get clean && rm -rf /var/lib/apt/lists/* 2>/dev/null || true && chown -R 1000:1000 /var/www/html 2>/dev/null || true"
-	// "forwardPorts": [],
+	"postCreateCommand": "export DEBIAN_FRONTEND=noninteractive && apt-get update && apt-get install -y --no-install-recommends sshpass openssh-client curl wget git unzip jq ca-certificates gnupg && apt-get clean && rm -rf /var/lib/apt/lists/* 2>/dev/null || true && chown -R 1000:1000 /var/www/html 2>/dev/null || true",
+	"forwardPorts": [
+		80,      // Laravel app
+		5173,    // Vite dev server
+		6001,    // Soketi WebSocket
+		9601     // Soketi metrics (optional)
+	],
 	// "runServices": [],
 	// "shutdownAction": "none",
 }

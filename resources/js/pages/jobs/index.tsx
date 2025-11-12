@@ -7,7 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Clock, User, Server as ServerIcon, CheckCircle2, XCircle, Loader2, RefreshCw, Eye } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useEcho } from '@laravel/echo-react';
 
 interface JobRun {
     id: number;
@@ -33,8 +34,62 @@ interface Props {
     };
 }
 
+
+type JobStatusEvent = {
+    jobRunId: number;
+    status: 'pending' | 'running' | 'completed' | 'failed';
+};
+
+type JobCreatedEvent = {
+    jobRun: JobRun;
+};
+
 export default function JobsIndex({ jobRuns, filters }: Props) {
+
+    const [jobs, setJobs] = useState(jobRuns);
     const [rerunningJobId, setRerunningJobId] = useState<number | null>(null);
+
+    // useEcho<JobStatusEvent>('private-job-runs-updated','script-job-run-status-updated', (event) => {
+    //     console.log('Job status updated:', event);
+
+    //     setJobs(prevJob => {
+    //         return prevJob.map(job => {
+    //             if (job.id === event.jobRunId) {
+    //                 return { ...job, status: event.status };
+    //             }
+    //             return job;
+    //         });
+    //     });
+    // });
+
+
+
+    useEcho<JobStatusEvent>('job-runs-updated','ScriptJobRunStatusUpdatedEvent', (event) => {
+        console.log('Job status updated:', event);
+
+        setJobs(prevJob => {
+            return {
+            ...prevJob,
+            data: prevJob.data.map(job => {
+                    if (job.id === event.jobRunId) {
+                        return { ...job, status: event.status };
+                    }
+                    return job;
+                })
+            }
+        });
+    });
+
+    useEcho<JobCreatedEvent>('job-runs-updated','ScriptJobRunCreatedEvent', (event) => {
+        console.log('New job created:', event);
+
+        setJobs(prevJob => {
+            return {
+                ...prevJob,
+                data: [event.jobRun, ...prevJob.data]
+            };
+        });
+    });
 
     const handleFilterChange = (status: string) => {
         router.get('/jobs', { status: status === 'all' ? undefined : status }, {
@@ -46,7 +101,7 @@ export default function JobsIndex({ jobRuns, filters }: Props) {
     const handleRerun = (jobId: number) => {
         setRerunningJobId(jobId);
         router.post(`/jobs/${jobId}/rerun`, {}, {
-            preserveScroll: true,
+            // preserveScroll: true,
             onFinish: () => setRerunningJobId(null),
         });
     };
@@ -119,20 +174,20 @@ export default function JobsIndex({ jobRuns, filters }: Props) {
                         <CardTitle>Activity Feed</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        {jobRuns.data.length === 0 ? (
+                        {jobs.data.length === 0 ? (
                             <div className="text-center py-12 text-muted-foreground">
                                 <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
                                 <p>No job runs found</p>
                             </div>
                         ) : (
                             <div className="space-y-1">
-                                {jobRuns.data.map((job, index) => (
+                                {jobs.data.map((job, index) => (
                                     <div
                                         key={job.id}
                                         className="group relative flex gap-4 pb-6"
                                     >
                                         {/* Timeline line */}
-                                        {index !== jobRuns.data.length - 1 && (
+                                        {index !== jobs.data.length - 1 && (
                                             <div className="absolute left-[10px] top-8 bottom-0 w-[2px] bg-border" />
                                         )}
 

@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\ScriptJobRunResource;
 use App\Jobs\RerunScriptJob;
 use App\Models\ScriptJobRun;
+use App\Repositories\ScriptJobRunRepository;
 use App\Services\ScriptJobService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -23,10 +25,11 @@ class ScriptJobRunController extends Controller
         $status = $request->query('status');
         $userId = $request->query('user_id');
 
-        $jobRuns = $this->jobService->getJobRuns($status, $userId);
+        $jobRuns = app(ScriptJobRunRepository::class)->getAllJobRunPaginited(100);
 
+        $resolvedJobs = ScriptJobRunResource::collection($jobRuns);
         return Inertia::render('jobs/index', [
-            'jobRuns' => $jobRuns,
+            'jobRuns' => $resolvedJobs,
             'filters' => [
                 'status' => $status,
                 'user_id' => $userId,

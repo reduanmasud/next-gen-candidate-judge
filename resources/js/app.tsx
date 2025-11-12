@@ -9,7 +9,17 @@ import { configureEcho } from '@laravel/echo-react';
 
 configureEcho({
     broadcaster: 'pusher',
+    key: import.meta.env.VITE_PUSHER_APP_KEY,
+    cluster: import.meta.env.VITE_PUSHER_APP_CLUSTER,
+    wsHost: import.meta.env.VITE_PUSHER_HOST,
+    wsPort: import.meta.env.VITE_PUSHER_PORT,
+    wssPort: import.meta.env.VITE_PUSHER_PORT,
+    forceTLS: import.meta.env.VITE_PUSHER_SCHEME === 'https',
+    encrypted: import.meta.env.VITE_PUSHER_SCHEME === 'https',
+    disableStats: import.meta.env.VITE_PUSHER_SCHEME === 'https',
+    enabledTransports: ['ws', 'wss'],
 });
+
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 

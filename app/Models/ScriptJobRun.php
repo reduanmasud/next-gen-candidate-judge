@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Events\ScriptJobRunCreatedEvent;
+use App\Events\ScriptJobRunStatusUpdatedEvent;
 use App\Scripts\ScriptDescriptor;
 use App\Services\ScriptEngine;
 use App\Services\ScriptWrapper;
@@ -11,6 +13,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\broadcast;
 use Throwable;
 
 class ScriptJobRun extends Model
@@ -160,5 +163,26 @@ class ScriptJobRun extends Model
     public function scopeFailed($query)
     {
         return $query->where('status', 'failed');
+    }
+
+
+    protected static function booted()
+    {
+
+        // Broadcast new job runs
+        static::created(function ($jobRun) {
+            broadcast(new ScriptJobRunCreatedEvent($jobRun))
+                ->toOthers();
+        });
+
+        // Broadcast status updates
+        static::updated(function ($jobRun) {
+            if($jobRun->wasChanged('status'))
+                broadcast(new ScriptJobRunStatusUpdatedEvent(
+                    jobRunId: $jobRun->id, 
+                    status: $jobRun->status))
+                    ->toOthers();  
+
+        });
     }
 }
