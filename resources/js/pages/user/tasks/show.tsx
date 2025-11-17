@@ -15,6 +15,9 @@ import SubmissionResultModal from '@/components/SubmissionResultModal';
 import QuizProgressModal from '@/components/QuizProgressModal';
 import AiJudgeProgressModal from '@/components/AiJudgeProgressModal';
 import axios from 'axios';
+import { useEcho } from '@laravel/echo-react';
+import WorkflowProgressTracker from '@/components/WorkflowProgressTracker';
+import { useWorkflowProgress, WorkflowState } from '@/hooks/use-workflow-progress';
 
 type JudgeType = 'none' | 'AiJudge' | 'QuizJudge' | 'TextJudge' | 'AutoJudge' | null;
 
@@ -85,6 +88,7 @@ interface UserTaskWorkspaceProps {
     workspace: WorkspaceResource;
     metadata: MetadataResource;
     judgeData: AiJudgeQuestion[] | QuizJudgeQuestion[] | TextJudgeQuestion[] | null;
+    workflow: WorkflowState;
 }
 
 const statusLabels: Record<string, string> = {
@@ -96,8 +100,25 @@ const statusLabels: Record<string, string> = {
     terminated: 'Terminated',
 };
 
-export default function UserTaskWorkspace({ task, attempt, workspace, metadata, judgeData }: UserTaskWorkspaceProps) {
+type WorkspaceStatusEvent = {
+    attemptId: number;
+    status: string;
+    currentStep: string | null;
+    metadata: Record<string, any> | null;
+};
+
+export default function UserTaskWorkspace({
+    task,
+    attempt: initialAttempt,
+    workspace,
+    metadata: initialMetadata,
+    judgeData,
+    workflow: initialWorkflow,
+
+ }: UserTaskWorkspaceProps) {
     const { auth } = usePage<SharedData>().props;
+    const [attempt, setAttempt] = useState<AttemptResource>(initialAttempt);
+    const [metadata, setMetadata] = useState<MetadataResource>(initialMetadata);
     const [isRestarting, setIsRestarting] = useState(false);
     const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -118,17 +139,36 @@ export default function UserTaskWorkspace({ task, attempt, workspace, metadata, 
     // AI Judge progress modal state
     const [showAiProgressModal, setShowAiProgressModal] = useState(false);
 
-    // Poll for status updates when attempt is pending
-    useEffect(() => {
-        if (attempt.status === 'pending' || attempt.status === 'preparing') {
-            const interval = setInterval(() => {
-                // Use Inertia's reload to refresh the page data
-                router.reload({ only: ['attempt', 'metadata', 'workspace'] });
-            }, 2000); // Poll every 2 seconds
+    const {
+        workflow,
+        currentStep,
+        isRunning,
+        isCompleted,
+        isFailed,
+        isIdle,
+        progress,
+    } = useWorkflowProgress({
+        initialWorkflow,
+        channel: `workspace-updates.${attempt.id}`,
+        event: '.WorkspaceStatusUpdatedEvent',
+        onComplete: () => {
+            console.log('Workflow completed!');
 
-            return () => clearInterval(interval);
-        }
-    }, [attempt.status]);
+            attempt.status = 'running';
+            router.reload();
+        },
+        onFail: (errorMessage) => {
+            console.log('Workflow failed!', errorMessage);
+            router.reload({
+                only: ['attempt', 'metadata', 'workspace', 'workflow'],
+            });
+        },
+    });
+
+
+
+
+
 
     const isAdmin = useMemo(() => {
         return auth.user?.roles?.includes('admin') ?? false;
@@ -256,7 +296,7 @@ export default function UserTaskWorkspace({ task, attempt, workspace, metadata, 
             <Head title={`${task.title} · Task`} />
 
             <div className="flex h-full flex-1 flex-col gap-4 overflow-auto p-4">
-                {attempt.status === 'pending' || attempt.status === 'preparing' ? (
+                {attempt.status === 'pending' || attempt.status === 'preparing' || attempt.status === 'failed' ? (
                     <div className="flex h-full w-full items-center justify-center">
                         <div className="flex w-full max-w-lg flex-col gap-6 rounded-lg border bg-card px-8 py-8 shadow-lg">
                             <div className="text-center">
@@ -273,9 +313,15 @@ export default function UserTaskWorkspace({ task, attempt, workspace, metadata, 
 
                             <Separator />
 
-                            <WorkspaceProgressTracker
+                            {/* <WorkspaceProgressTracker
                                 currentStep={metadata.current_step || null}
                                 allowSsh={task.allowssh}
+                            /> */}
+
+                            <WorkflowProgressTracker
+                                workflow={workflow}
+
+                                variant="default"
                             />
                         </div>
                     </div>

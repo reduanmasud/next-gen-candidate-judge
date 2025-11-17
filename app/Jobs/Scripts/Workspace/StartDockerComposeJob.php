@@ -2,6 +2,7 @@
 
 namespace App\Jobs\Scripts\Workspace;
 
+use App\Contracts\TracksProgressInterface;
 use App\Enums\AttemptTaskStatus;
 use App\Models\ScriptJobRun;
 use App\Models\Server;
@@ -23,89 +24,101 @@ class StartDockerComposeJob extends BaseWorkspaceJob
     ) {
         parent::__construct();
     }
+    public static function getStepMetadata(): array
+    {
+        return [
+            'id' => 'starting_docker_compose',
+            'label' => 'Starting Docker Compose',
+            'description' => 'Starting docker-compose.yaml for workspace',
+            'icon' => 'docker',
+            'estimatedDuration' => 9,
+        ];
+    }
+    public function getTrackableModel(): TracksProgressInterface
+    {
+        if(!isset($this->attempt)) {
+            $this->attempt = UserTaskAttempt::find($this->attemptId);
+        }
+        return $this->attempt;
+    }
 
-    public function handle(ScriptEngine $engine): void
+    protected function execute(): void
     {
         $this->attempt = UserTaskAttempt::find($this->attemptId);
         $this->server = Server::find($this->serverId);
 
-        try {
-            // Update progress: job started
-            $this->attempt->addMeta(['current_step' => 'starting_docker_compose']);
 
-            $script = ScriptDescriptor::make(
-                'scripts.start_docker_compose',
-                [
-                    'workspace_path' => $this->attempt->getMeta('workspace_path'),
-                    'task' => $this->attempt->task,
-                ],
-                'Start Docker Compose Script'
-            );
+        $script = ScriptDescriptor::make(
+            'scripts.start_docker_compose',
+            [
+                'workspace_path' => $this->attempt->getMeta('workspace_path'),
+                'task' => $this->attempt->task,
+            ],
+            'Start Docker Compose Script'
+        );
 
-            $this->attempt->appendNote("Starting docker compose for workspace");
+        $this->attempt->appendNote("Starting docker compose for workspace");
 
+        [$this->jobRun, $result] = ScriptJobRun::createAndExecute(
+            script: $script,
+            engine: app(ScriptEngine::class),
+            attempt: $this->attempt,
+            server: $this->server,
+            metadata: [
+                'workspace_path' => $this->attempt->getMeta('workspace_path'),
+                'attempt_id' => $this->attempt->id,
+            ]
+        );
 
+        $this->attempt->appendNote("Started docker compose for workspace");
+        // Parse docker compose output to get container info
+        $containers = $this->parseDockerComposeOutput($result['output'] ?? '');
+        $primaryContainer = $containers[0] ?? null;
+        $publishedPort = $primaryContainer ? $this->extractPublishedPort($primaryContainer) : null;
 
-            [$jobRun, $result] = ScriptJobRun::createAndExecute(
-                script: $script,
-                engine: $engine,
-                attempt: $this->attempt,
-                server: $this->server,
-                metadata: [
-                    'workspace_path' => $this->attempt->getMeta('workspace_path'),
-                    'attempt_id' => $this->attempt->id,
-                ]
-            );
+        $this->attempt->appendNote("Parsed docker compose output for workspace");
+        $this->attempt->appendNote("Primary container: ".json_encode($primaryContainer));
 
-            $this->attempt->appendNote("Started docker compose for workspace");
-            // Parse docker compose output to get container info
-            $containers = $this->parseDockerComposeOutput($result['output'] ?? '');
-            $primaryContainer = $containers[0] ?? null;
-            $publishedPort = $primaryContainer ? $this->extractPublishedPort($primaryContainer) : null;
+        // Update attempt with container information
+        $this->attempt->update([
+            'container_id' => Arr::get($primaryContainer, 'ID'),
+            'container_name' => Arr::get($primaryContainer, 'Name'),
+            'container_port' => $publishedPort,
+        ]);
 
-            $this->attempt->appendNote("Parsed docker compose output for workspace");
-            $this->attempt->appendNote("Primary container: ".json_encode($primaryContainer));
-
-            // Update attempt with container information
-            $this->attempt->update([
-                'container_id' => Arr::get($primaryContainer, 'ID'),
-                'container_name' => Arr::get($primaryContainer, 'Name'),
-                'container_port' => $publishedPort,
-            ]);
-
-            $this->attempt->appendNote("Updated attempt with container information");
-            $this->attempt->appendNote("Docker compose started successfully");
+        $this->attempt->appendNote("Updated attempt with container information");
+        $this->attempt->appendNote("Docker compose started successfully");
 
 
-            // Update job run metadata using HasMeta trait
-            $jobRun->addMeta([
-                'containers' => $containers,
-                'primary_container' => $primaryContainer,
-                'primary_container_name' => Arr::get($primaryContainer, 'Name'),
-            ]);
+        // Update job run metadata using HasMeta trait
+        $this->jobRun->addMeta([
+            'containers' => $containers,
+            'primary_container' => $primaryContainer,
+            'primary_container_name' => Arr::get($primaryContainer, 'Name'),
+        ]);
 
 
-            // Update attempt metadata using HasMeta trait
-            $this->attempt->addMeta([
-                'containers' => $containers,
-                'primary_container' => $primaryContainer,
-                'primary_container_name' => Arr::get($primaryContainer, 'Name'),
-            ]);
+        // Update attempt metadata using HasMeta trait
+        $this->attempt->addMeta([
+            'containers' => $containers,
+            'primary_container' => $primaryContainer,
+            'primary_container_name' => Arr::get($primaryContainer, 'Name'),
+        ]);
+    }
 
-            // Update progress: job completed
-            $this->attempt->addMeta(['current_step' => 'starting_docker_compose_completed']);
-
-        } catch (Throwable $e) {
-            $this->attempt->update([
-                'status' => AttemptTaskStatus::FAILED,
-                'failed_at' => now(),
-            ]);
-            $this->attempt->addMeta(['current_step' => 'failed', 'failed_step' => 'starting_docker_compose']);
-            $this->attempt->appendNote("Failed to start docker compose: ".$e->getMessage());
-
-
-            throw $e; // Re-throw to stop the chain
-        }
+    protected function failed(Throwable $exception): void
+    {
+        $this->attempt->appendNote("Failed to start docker compose: ".$exception->getMessage());
+        $this->jobRun->update([
+            'status' => 'failed',
+            'error_output' => "Failed to start docker compose: " . $exception->getMessage(),
+            'failed_at' => now(),
+            'completed_at' => now(),
+        ]);
+        $this->attempt->update([
+            'status' => AttemptTaskStatus::FAILED,
+            'failed_at' => now(),
+        ]);
     }
 
 
@@ -151,7 +164,5 @@ class StartDockerComposeJob extends BaseWorkspaceJob
 
         return null;
     }
-
-    // Uses BaseWorkspaceJob::failed() for error handling
 }
 

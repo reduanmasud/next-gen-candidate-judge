@@ -2,6 +2,7 @@
 
 namespace App\Jobs\Scripts\Workspace;
 
+use App\Contracts\TracksProgressInterface;
 use App\Enums\AttemptTaskStatus;
 use App\Models\ScriptJobRun;
 use App\Models\Server;
@@ -12,7 +13,7 @@ use Throwable;
 
 class CreateUserJob extends BaseWorkspaceJob
 {
-    
+
     public UserTaskAttempt $attempt;
     public Server $server;
 
@@ -23,56 +24,78 @@ class CreateUserJob extends BaseWorkspaceJob
         parent::__construct();
     }
 
-    public function handle(ScriptEngine $engine): void
+    public static function getStepMetadata(): array
     {
+        return [
+            'id' => 'creating_user',
+            'label' => 'Creating User',
+            'description' => 'Setting up workspace user account',
+            'icon' => 'user-plus',
+            'estimatedDuration' => 9,
+        ];
+    }
+
+    public function getTrackableModel(): TracksProgressInterface
+    {
+        if(!isset($this->attempt)) {
+            $this->attempt = UserTaskAttempt::find($this->attemptId);
+        }
+        return $this->attempt;
+    }
+
+    protected function execute(): void
+    {
+
         $this->attempt = UserTaskAttempt::find($this->attemptId);
         $this->server = Server::find($this->serverId);
 
-        try {
-            // Update progress: job started
-            $this->attempt->addMeta(['current_step' => 'creating_user']);
+        $script = ScriptDescriptor::make(
+            'scripts.create_user',
+            [
+                'username' => $this->attempt->getMeta('username'),
+                'password' => $this->attempt->getMeta('password'),
+                'workspace_path' => $this->attempt->getMeta('workspace_path'),
+            ],
+            'Create User Script for ' . $this->attempt->user->name
+        );
 
-            $script = ScriptDescriptor::make(
-                'scripts.create_user',
-                [
-                    'username' => $this->attempt->getMeta('username'),
-                    'password' => $this->attempt->getMeta('password'),
-                    'workspace_path' => $this->attempt->getMeta('workspace_path'),
-                ],
-                'Create User Script for ' . $this->attempt->user->name
-            );
+        $this->attempt->appendNote("Creating user: ".$this->attempt->username);
+        $this->attempt->update(
+            [
+                'status' => AttemptTaskStatus::PREPARING,
+                'started_at' => now(),
+            ]
+        );
 
-            $this->attempt->appendNote("Creating user: ".$this->attempt->username);
+        [$this->jobRun, $result] = ScriptJobRun::createAndExecute(
+            script: $script,
+            engine: app(ScriptEngine::class),
+            attempt: $this->attempt,
+            server: $this->server,
+            metadata: [
+                'username' => $this->attempt->getMeta('username'),
+                'workspace_path' => $this->attempt->getMeta('workspace_path'),
+                'password' => $this->attempt->getMeta('password'),
+            ]
+        );
 
+        $this->attempt->appendNote("Created user: ".$this->attempt->username);
+    }
 
-            [$jobRun, $result] = ScriptJobRun::createAndExecute(
-                script: $script,
-                engine: $engine,
-                attempt: $this->attempt,
-                server: $this->server,
-                metadata: [
-                    'username' => $this->attempt->getMeta('username'),
-                    'workspace_path' => $this->attempt->getMeta('workspace_path'),
-                    'password' => $this->attempt->getMeta('password'),
-                ]
-            );
+    protected function failed(Throwable $exception): void
+    {
+        $this->attempt->appendNote("Failed to create user: ".$exception->getMessage());
+        $this->jobRun->update([
+            'status' => 'failed',
+            'error_output' => "Failed to create user: " . $exception->getMessage(),
+            'failed_at' => now(),
+            'completed_at' => now(),
+        ]);
+        $this->attempt->update([
+            'status' => AttemptTaskStatus::FAILED,
+            'failed_at' => now(),
+        ]);
 
-            $this->attempt->appendNote("Created user: ".$this->attempt->username);
-
-            // Update progress: job completed
-            $this->attempt->addMeta(['current_step' => 'creating_user_completed']);
-
-        } catch (Throwable $e) {
-
-            $this->attempt->update([
-                'status' => AttemptTaskStatus::FAILED,
-                'failed_at' => now(),
-            ]);
-            $this->attempt->addMeta(['current_step' => 'failed', 'failed_step' => 'creating_user']);
-            $this->attempt->appendNote("Failed to create user: ".$e->getMessage());
-
-            throw $e; // Re-throw to stop the chain
-        }
     }
 
 }

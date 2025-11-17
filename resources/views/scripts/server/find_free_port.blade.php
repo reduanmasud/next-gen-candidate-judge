@@ -26,7 +26,7 @@ echo "➡️ Moving to the next step..."
 for ((port=$start_port; port<=$max_port; port++)); do
   # Check if the port is free
   if ! nc -z localhost $port 2>/dev/null; then
-    
+
     # Output JSON for PHP
       echo "__OUTPUT_JSON__"
       echo "{\"ssh_port\": $port }"
@@ -36,7 +36,7 @@ for ((port=$start_port; port<=$max_port; port++)); do
     echo "$port" > "{{ $workspace_path }}/.ssh_port"
 
 
-    
+
     exit 0
   fi
 done

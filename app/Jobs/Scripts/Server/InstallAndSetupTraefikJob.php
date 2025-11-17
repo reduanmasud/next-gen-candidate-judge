@@ -2,6 +2,7 @@
 
 namespace App\Jobs\Scripts\Server;
 
+use App\Contracts\TracksProgressInterface;
 use App\Jobs\Scripts\BaseScriptJob;
 use App\Models\ScriptJobRun;
 use App\Models\Server;
@@ -21,19 +22,35 @@ class InstallAndSetupTraefikJob extends BaseScriptJob
         public string $cloudflareDomain,
     ) {
         parent::__construct();
-        
+
     }
-    public function handle(ScriptEngine $engine): void
+
+    public static function getStepMetadata(): array
+    {
+        return [
+            'id' => 'installing_traefik',
+            'label' => 'Installing Traefik',
+            'description' => 'Installing and setting up traefik',
+            'icon' => 'traefik',
+            'estimatedDuration' => 5,
+        ];
+    }
+
+    public function getTrackableModel(): TracksProgressInterface
+    {
+        if(!isset($this->server)) {
+            $this->server = Server::find($this->serverId);
+        }
+        return $this->server;
+    }
+
+
+    protected function execute(): void
     {
         $this->server = Server::find($this->serverId);
-
-        // Update progress: job started
-        $this->server->addMeta(['current_step' => 'installing_traefik']);
         $this->server->appendNote("Installing and setting up traefik");
 
-        try {
-
-            $script = ScriptDescriptor::make(
+        $script = ScriptDescriptor::make(
             template: 'scripts.server.install_and_setup_traefik',
             data:[
                 'cloudflareApiToken' => $this->cloudflareApiToken,
@@ -43,38 +60,35 @@ class InstallAndSetupTraefikJob extends BaseScriptJob
             name:'Install and Setup Traefik '.$this->server->ip_address
         );
 
-            [$jobRun, $result]= ScriptJobRun::createAndExecute(
-                script: $script,
-                engine: $engine,
-                server: $this->server,
-                metadata: [
-                    'server_id' => $this->server->id,
-                ]
-            );
+        [$this->jobRun, $result]= ScriptJobRun::createAndExecute(
+            script: $script,
+            engine: app(ScriptEngine::class),
+            server: $this->server,
+            metadata: [
+                'server_id' => $this->server->id,
+            ]
+        );
 
-            if (!$result['successful']) {
-                throw new \RuntimeException('Failed to install and setup traefik: ' . ($result['error_output'] ?? $result['output'] ?? 'Unknown error'));
-            }
-
-            $this->server->update(['status' => 'provisioned', 'provisioned_at' => now()]);
-            $this->server->appendNote("Traefik installed and setup");
-
-            // Update progress: all jobs completed
-            $this->server->addMeta(['current_step' => 'completed']);
-
-        } catch (Throwable $e) {
-            $this->server->update(['status' => 'failed']);
-            $jobRun->update([
-                'status' => 'failed',
-                'error_output' => "Failed to install and setup traefik: " . $e->getMessage(),
-                'failed_at' => now(),
-                'completed_at' => now(),
-            ]);
-
-            $this->server->appendNote("Failed to install and setup traefik: ".$e->getMessage());
-            $this->server->addMeta(['current_step' => 'failed', 'failed_step' => 'installing_traefik']);
-
-            throw $e; // Re-throw to stop the chain
+        if (!$result['successful']) {
+            throw new \RuntimeException('Failed to install and setup traefik: ' . ($result['error_output'] ?? $result['output'] ?? 'Unknown error'));
         }
+
+        $this->server->update(['status' => 'provisioned', 'provisioned_at' => now()]);
+        $this->server->appendNote("Traefik installed and setup");
+
+
+    }
+
+
+    protected function failed(Throwable $exception): void
+    {
+        $this->server->update(['status' => 'failed']);
+        $this->jobRun->update([
+                    'status' => 'failed',
+                    'error_output' => "Failed to install and setup traefik: " . $exception->getMessage(),
+                    'failed_at' => now(),
+                    'completed_at' => now(),
+                ]);
+        $this->server->appendNote("Failed to install and setup traefik: ".$exception->getMessage());
     }
 }

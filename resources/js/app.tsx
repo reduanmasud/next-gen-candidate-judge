@@ -7,6 +7,13 @@ import { createRoot } from 'react-dom/client';
 import { initializeTheme } from './hooks/use-appearance';
 import { configureEcho } from '@laravel/echo-react';
 
+console.log('🔧 Configuring Echo with:', {
+    broadcaster: 'pusher',
+    key: import.meta.env.VITE_PUSHER_APP_KEY,
+    wsHost: import.meta.env.VITE_PUSHER_HOST,
+    wsPort: import.meta.env.VITE_PUSHER_PORT,
+});
+
 configureEcho({
     broadcaster: 'pusher',
     key: import.meta.env.VITE_PUSHER_APP_KEY,
@@ -19,6 +26,8 @@ configureEcho({
     disableStats: import.meta.env.VITE_PUSHER_SCHEME === 'https',
     enabledTransports: ['ws', 'wss'],
 });
+
+console.log('✅ Echo configured');
 
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
