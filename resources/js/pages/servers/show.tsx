@@ -12,7 +12,9 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Server, Calendar, User, Network } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import ServerProvisionProgressTracker from '@/components/ServerProvisionProgressTracker';
+import WorkflowProgressTracker from '@/components/WorkflowProgressTracker';
+import { useEcho } from '@laravel/echo-react';
+import { useWorkflowProgress, WorkflowState } from '@/hooks/use-workflow-progress';
 
 interface ServerType {
     id: number;
@@ -30,10 +32,23 @@ interface ServerType {
 interface ServerShowProps {
     server: ServerType;
     metadata?: Record<string, any>;
+    workflow?: WorkflowState;
 }
 
-export default function ServerShow({ server, metadata }: ServerShowProps) {
-    const [currentStep, setCurrentStep] = useState<string | null>(metadata?.current_step || null);
+type ServerStatusEvent = {
+    serverId: number;
+    status: string;
+    currentStep: string | null;
+    metadata: Record<string, any> | null;
+};
+
+export default function ServerShow({
+    server: initialServer,
+    metadata,
+    workflow: initialWorkflow,
+ }: ServerShowProps) {
+    const [server, setServer] = useState<ServerType>(initialServer);
+
 
     const breadcrumbs: BreadcrumbItem[] = [
         {
@@ -46,26 +61,29 @@ export default function ServerShow({ server, metadata }: ServerShowProps) {
         },
     ];
 
-    // Poll for status updates when server is provisioning
-    useEffect(() => {
-        if (server.status !== 'provisioning') return;
-
-        const pollInterval = setInterval(() => {
-            fetch(`/servers/${server.id}/status`)
-                .then(res => res.json())
-                .then(data => {
-                    setCurrentStep(data.current_step);
-
-                    // If status changed, reload the page to get updated server data
-                    if (data.status !== 'provisioning') {
-                        router.reload({ only: ['server', 'metadata'] });
-                    }
-                })
-                .catch(err => console.error('Failed to fetch status:', err));
-        }, 2000); // Poll every 2 seconds
-
-        return () => clearInterval(pollInterval);
-    }, [server.id, server.status]);
+    const {
+        workflow,
+        currentStep,
+        isRunning,
+        isCompleted,
+        isFailed,
+        isIdle,
+        progress,
+    } = useWorkflowProgress({
+        initialWorkflow: initialWorkflow!,
+        channel: `server-updates.${server.id}`,
+        event: '.ServerProvisioningStatusUpdatedEvent',
+        onComplete: () => {
+            console.log('Workflow completed!');
+            setServer(prev => ({ ...prev, status: 'provisioned' }));
+            router.reload();
+        },
+        onFail: (errorMessage) => {
+            console.log('Workflow failed!', errorMessage);
+            setServer(prev => ({ ...prev, status: 'failed' }));
+            router.reload();
+        },
+    });
 
     const getStatusBadge = (status: string) => {
         const statusConfig: Record<string, { label: string; className: string }> = {
@@ -120,7 +138,10 @@ export default function ServerShow({ server, metadata }: ServerShowProps) {
 
                             <Separator />
 
-                            <ServerProvisionProgressTracker currentStep={currentStep} />
+                            <WorkflowProgressTracker
+                                workflow={workflow}
+                                variant="default"
+                            />
                         </div>
                     </div>
                 ) : (

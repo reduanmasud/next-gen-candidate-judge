@@ -95,6 +95,12 @@ class WorkspaceService
 
 
 
+            $attempt->initializeWorkflowFromJobs(
+                jobs: $jobs,
+                workflowType: 'workspace_provisioning',
+                workflowName: 'Workspace Provisioning'
+            );
+
             Bus::chain($jobs)->onQueue('default')->dispatch();
 
         }
@@ -139,7 +145,7 @@ class WorkspaceService
     protected function yamlFillWithData(string $yaml, array $data): string
     {
 
-        
+
         preg_match_all('/{{(\w+)}}/', $yaml, $matches);
         $placeholders = $matches[1];
 

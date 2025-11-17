@@ -3,6 +3,8 @@ import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link } from '@inertiajs/react';
 import { PlusIcon, Server } from 'lucide-react';
+import { useEcho } from '@laravel/echo-react';
+import { useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -31,7 +33,50 @@ interface ServersIndexProps {
     };
 }
 
-export default function ServersIndex({ servers }: ServersIndexProps) {
+type ServerCreatedEvent = {
+    server: ServerType;
+};
+
+type ServerStatusEvent = {
+    serverId: number;
+    status: string;
+    currentStep: string | null;
+    metadata: Record<string, any> | null;
+};
+
+export default function ServersIndex({ servers: initialServers }: ServersIndexProps) {
+    const [servers, setServers] = useState(initialServers);
+
+    // Listen for new server creation
+    useEcho<ServerCreatedEvent>('server-updates', 'ServerCreatedEvent', (event) => {
+        console.log('🔔 New server created:', event);
+
+        setServers(prev => {
+            console.log('Adding new server to list');
+            return {
+                ...prev,
+                data: [event.server, ...prev.data]
+            };
+        });
+    });
+
+    // Listen for server status updates
+    useEcho<ServerStatusEvent>('server-updates', 'ServerProvisioningStatusUpdatedEvent', (event) => {
+        console.log('🔔 Server status updated:', event);
+        console.log('Updating server ID:', event.serverId, 'to status:', event.status);
+
+        setServers(prev => ({
+            ...prev,
+            data: prev.data.map(server => {
+                if (server.id === event.serverId) {
+                    console.log('✅ Found server in list, updating status');
+                    return { ...server, status: event.status };
+                }
+                return server;
+            })
+        }));
+    });
+
     const getStatusBadge = (status: string) => {
         const statusConfig: Record<string, { label: string; className: string }> = {
             pending: {

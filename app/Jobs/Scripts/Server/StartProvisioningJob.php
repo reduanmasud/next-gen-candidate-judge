@@ -2,6 +2,7 @@
 
 namespace App\Jobs\Scripts\Server;
 
+use App\Contracts\TracksProgressInterface;
 use App\Jobs\Scripts\BaseScriptJob;
 use App\Models\ScriptJobRun;
 use App\Models\Server;
@@ -12,7 +13,7 @@ use Throwable;
 
 class StartProvisioningJob extends BaseScriptJob
 {
-    
+
     public Server $server;
 
     public function __construct(
@@ -21,55 +22,62 @@ class StartProvisioningJob extends BaseScriptJob
         parent::__construct();
     }
 
-    public function handle(ScriptEngine $engine): void
+    public static function getStepMetadata(): array
     {
+        return [
+            'id' => 'starting_provision',
+            'label' => 'Starting Provision',
+            'description' => 'Starting server provision',
+            'icon' => 'server',
+            'estimatedDuration' => 9,
+        ];
+    }
 
+    public function getTrackableModel(): TracksProgressInterface
+    {
+        if(!isset($this->server)) {
+            $this->server = Server::find($this->serverId);
+        }
+        return $this->server;
+    }
+
+
+    protected function execute(): void
+    {
         $this->server = Server::find($this->serverId);
-
-        // Update server status
         $this->server->update(['status' => 'provisioning']);
         $this->server->appendNote("Server provisioning started");
 
-        // Update progress: job started
-        $this->server->addMeta(['current_step' => 'starting_provision']);
+        $script = ScriptDescriptor::make(
+            template: 'scripts.server.start_server_provision',
+            data:[],
+            name:'Start Provisioning '.$this->server->ip_address
+        );
 
-        try {
+        [$this->jobRun, $result]= ScriptJobRun::createAndExecute(
+            script: $script,
+            engine: app(ScriptEngine::class),
+            server: $this->server,
+            metadata: [
+                'server_id' => $this->server->id,
+            ]
+        );
 
-            $script = ScriptDescriptor::make(
-                template: 'scripts.server.start_server_provision',
-                data:[],
-                name:'Start Provisioning '.$this->server->ip_address
-            );
-
-            [$jobRun, $result]= ScriptJobRun::createAndExecute(
-                script: $script,
-                engine: $engine,
-                server: $this->server,
-                metadata: [
-                    'server_id' => $this->server->id,
-                ]
-            );
-
-            if (!$result['successful']) {
-                throw new RuntimeException('Failed to start provisioning: ' . ($result['error_output'] ?? $result['output'] ?? 'Unknown error'));
-            }
-
-            // Update progress: job completed
-            $this->server->addMeta(['current_step' => 'starting_provision_completed']);
-
-        } catch (Throwable $e) {
-            $jobRun->update([
-                'status' => 'failed',
-                'error_output' => "Failed to start provisioning: " . $e->getMessage(),
-                'failed_at' => now(),
-                'completed_at' => now(),
-            ]);
-
-            $this->server->appendNote("Failed to start provisioning: ".$e->getMessage());
-            $this->server->update(['status' => 'failed']);
-            $this->server->addMeta(['current_step' => 'failed', 'failed_step' => 'starting_provision']);
-
-            throw $e; // Re-throw to stop the chain
+        if (!$result['successful']) {
+            throw new RuntimeException('Failed to start provisioning: ' . ($result['error_output'] ?? $result['output'] ?? 'Unknown error'));
         }
+
+    }
+
+    protected function failed(Throwable $exception): void
+    {
+        $this->server->update(['status' => 'failed']);
+        $this->jobRun->update([
+            'status' => 'failed',
+            'error_output' => "Failed to start provisioning: " . $exception->getMessage(),
+            'failed_at' => now(),
+            'completed_at' => now(),
+        ]);
+        $this->server->appendNote("Failed to start provisioning: ".$exception->getMessage());
     }
 }

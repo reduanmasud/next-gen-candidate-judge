@@ -131,9 +131,8 @@ class UserTaskController extends Controller
             abort(404);
         }
 
-        if($attempt->status === AttemptTaskStatus::TERMINATED || 
-            $attempt->status === AttemptTaskStatus::COMPLETED || 
-            $attempt->status === AttemptTaskStatus::FAILED ||
+        if($attempt->status === AttemptTaskStatus::TERMINATED ||
+            $attempt->status === AttemptTaskStatus::COMPLETED ||
             $attempt->status === AttemptTaskStatus::ATTEMPTED_FAILED
         ) {
             abort(404);
@@ -230,6 +229,7 @@ class UserTaskController extends Controller
                 'terminal_url' => $terminalUrl,
             ],
             'judgeData' => $judgeData,
+            'workflow' => $attempt->getWorkflowState(),
         ]);
     }
 
@@ -279,6 +279,7 @@ class UserTaskController extends Controller
             'container_port' => $attempt->container_port,
             'metadata' => $metadata,
             'current_step' => $attempt->getMeta('current_step'),
+            'workflow' => $attempt->getWorkflowState(),
         ]);
     }
 

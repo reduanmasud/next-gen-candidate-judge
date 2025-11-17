@@ -84,6 +84,7 @@ class ServerProvisionController extends Controller
         return Inertia::render('servers/show', [
             'server' => $server,
             'metadata' => $server->getAllMeta(),
+            'workflow' => $server->getWorkflowState(),
         ]);
     }
 

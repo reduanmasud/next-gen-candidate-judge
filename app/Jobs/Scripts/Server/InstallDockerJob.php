@@ -2,6 +2,7 @@
 
 namespace App\Jobs\Scripts\Server;
 
+use App\Contracts\TracksProgressInterface;
 use App\Jobs\Scripts\BaseScriptJob;
 use App\Models\ScriptJobRun;
 use App\Models\Server;
@@ -12,57 +13,69 @@ use Throwable;
 class InstallDockerJob extends BaseScriptJob
 {
     public Server $server;
+
     public function __construct(
         public Int $serverId,
     ) {
         parent::__construct();
     }
-    public function handle(ScriptEngine $engine): void
+
+    public static function getStepMetadata(): array
+    {
+        return [
+            'id' => 'installing_docker',
+            'label' => 'Installing Docker',
+            'description' => 'Installing docker',
+            'icon' => 'docker',
+            'estimatedDuration' => 5,
+        ];
+    }
+
+    public function getTrackableModel(): TracksProgressInterface
+    {
+        if(!isset($this->server)) {
+            $this->server = Server::find($this->serverId);
+        }
+        return $this->server;
+    }
+
+
+    protected function execute(): void
     {
         $this->server = Server::find($this->serverId);
-
-        // Update progress: job started
-        $this->server->addMeta(['current_step' => 'installing_docker']);
         $this->server->appendNote("Installing docker");
 
-        try {
+        $script = ScriptDescriptor::make(
+            template: 'scripts.server.install_docker',
+            data:[],
+            name:'Install Docker '.$this->server->ip_address
+        );
 
-            $script = ScriptDescriptor::make(
-                template: 'scripts.server.install_docker',
-                data:[],
-                name:'Install Docker '.$this->server->ip_address
-            );
+        [$this->jobRun, $result]= ScriptJobRun::createAndExecute(
+            script: $script,
+            engine: app(ScriptEngine::class),
+            server: $this->server,
+            metadata: [
+                'server_id' => $this->server->id,
+            ]
+        );
 
-            [$jobRun, $result]= ScriptJobRun::createAndExecute(
-                script: $script,
-                engine: $engine,
-                server: $this->server,
-                metadata: [
-                    'server_id' => $this->server->id,
-                ]
-            );
-
-            if (!$result['successful']) {
-                throw new \RuntimeException('Failed to install docker: ' . ($result['error_output'] ?? $result['output'] ?? 'Unknown error'));
-            }
-
-            $this->server->appendNote("Docker installed");
-
-            // Update progress: job completed
-            $this->server->addMeta(['current_step' => 'installing_docker_completed']);
-        } catch (Throwable $e) {
-            $this->server->update(['status' => 'failed']);
-            $jobRun->update([
-                'status' => 'failed',
-                'error_output' => "Failed to install docker: " . $e->getMessage(),
-                'failed_at' => now(),
-                'completed_at' => now(),
-            ]);
-
-            $this->server->appendNote("Failed to install docker: ".$e->getMessage());
-            $this->server->addMeta(['current_step' => 'failed', 'failed_step' => 'installing_docker']);
-
-            throw $e; // Re-throw to stop the chain
+        if (!$result['successful']) {
+            throw new \RuntimeException('Failed to install docker: ' . ($result['error_output'] ?? $result['output'] ?? 'Unknown error'));
         }
+
+        $this->server->appendNote("Docker installed");
+    }
+
+    protected function failed(Throwable $exception): void
+    {
+        $this->server->update(['status' => 'failed']);
+        $this->jobRun->update([
+            'status' => 'failed',
+            'error_output' => "Failed to install docker: " . $exception->getMessage(),
+            'failed_at' => now(),
+            'completed_at' => now(),
+        ]);
+        $this->server->appendNote("Failed to install docker: ".$exception->getMessage());
     }
 }
