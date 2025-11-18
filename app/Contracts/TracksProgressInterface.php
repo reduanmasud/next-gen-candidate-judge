@@ -2,10 +2,18 @@
 
 namespace App\Contracts;
 
-
+/**
+ * Interface for models that support progress tracking
+ *
+ * Implementations MUST also use the HasMeta trait
+ */
 interface TracksProgressInterface
 {
     public function getWorkflowType(): string;
+
+     // Add these methods from HasMeta trait
+    public function getAllMeta(): array;
+    public function addMeta(array $data, bool $overwrite = true): self;
 
     public function getWorkflowState(): array;
 

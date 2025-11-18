@@ -19,6 +19,7 @@ trait TracksProgress
      */
     abstract public function getWorkflowType(): string;
 
+
     /**
      * Get all workflow steps with their status
      */

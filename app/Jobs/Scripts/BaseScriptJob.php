@@ -90,7 +90,7 @@ abstract class BaseScriptJob implements ShouldQueue, DescribesProgressStep
             'completed_at' => now()->toIso8601String(),
         ]);
 
-        // Check if all steps are completed
+
         $metadata = $trackable->getAllMeta();
         $workflowDefinition = $metadata['workflow_definition'] ?? null;
 
