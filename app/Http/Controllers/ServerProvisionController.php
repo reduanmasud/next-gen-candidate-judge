@@ -6,6 +6,7 @@ use App\Models\Server;
 use App\Services\ServerProvisionService;
 use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -56,7 +57,7 @@ class ServerProvisionController extends Controller
             'ip_address' => $validated['ip_address'],
             'ssh_username' => $validated['ssh_username'],
             'ssh_password' => $validated['ssh_password'],
-            'user_id' => auth()->user()->id,
+            'user_id' => Auth::user()->id,
             'status' => 'pending',
         ]);
 
