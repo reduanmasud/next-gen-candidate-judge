@@ -33,6 +33,11 @@ import {
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { PlusIcon, Trash2Icon } from 'lucide-react';
+import CodeMirror from '@uiw/react-codemirror';
+import { yaml } from '@codemirror/lang-yaml';
+import { StreamLanguage } from '@codemirror/language';
+import { shell } from '@codemirror/legacy-modes/mode/shell';
+import { useTheme } from 'next-themes';
 
 type JudgeType = 'AiJudge' | 'QuizJudge' | 'TextJudge' | 'AutoJudge' | '';
 
@@ -85,6 +90,7 @@ interface EditTaskProps {
 }
 
 export default function EditTask({ task, servers = [] }: EditTaskProps) {
+    const { theme } = useTheme();
     const breadcrumbs: BreadcrumbItem[] = [
         {
             title: 'Tasks',
@@ -282,17 +288,39 @@ export default function EditTask({ task, servers = [] }: EditTaskProps) {
                                     <Label htmlFor="docker_compose_yaml">
                                         Docker Compose Configuration
                                     </Label>
-                                    <Textarea
-                                        id="docker_compose_yaml"
-                                        value={data.docker_compose_yaml}
-                                        onChange={(e) =>
-                                            setData('docker_compose_yaml', e.target.value)
-                                        }
-                                        placeholder="Paste your docker-compose.yaml content here"
-                                        rows={14}
-                                        className="font-mono text-sm"
-                                        required={data.sandbox}
-                                    />
+                                    <div className="border rounded-md overflow-hidden">
+                                        <CodeMirror
+                                            value={data.docker_compose_yaml}
+                                            height="350px"
+                                            extensions={[yaml()]}
+                                            onChange={(value) => setData('docker_compose_yaml', value)}
+                                            theme={theme === 'dark' ? 'dark' : 'light'}
+                                            placeholder="Paste your docker-compose.yaml content here"
+                                            editable={data.sandbox}
+                                            basicSetup={{
+                                                lineNumbers: true,
+                                                highlightActiveLineGutter: true,
+                                                highlightSpecialChars: true,
+                                                foldGutter: true,
+                                                drawSelection: true,
+                                                dropCursor: true,
+                                                allowMultipleSelections: true,
+                                                indentOnInput: true,
+                                                bracketMatching: true,
+                                                closeBrackets: true,
+                                                autocompletion: true,
+                                                rectangularSelection: true,
+                                                crosshairCursor: true,
+                                                highlightActiveLine: true,
+                                                highlightSelectionMatches: true,
+                                                closeBracketsKeymap: true,
+                                                searchKeymap: true,
+                                                foldKeymap: true,
+                                                completionKeymap: true,
+                                                lintKeymap: true,
+                                            }}
+                                        />
+                                    </div>
                                     <p className="text-xs text-muted-foreground">
                                         Paste valid YAML. Use services, volumes, and networks as needed.
                                     </p>
@@ -303,14 +331,38 @@ export default function EditTask({ task, servers = [] }: EditTaskProps) {
                                     <>
                                         <div className="space-y-2">
                                             <Label htmlFor="pre_script">Pre-script (Optional)</Label>
-                                            <Textarea
-                                                id="pre_script"
-                                                value={data.pre_script}
-                                                onChange={(e) => setData('pre_script', e.target.value)}
-                                                placeholder="Enter script to run before task execution"
-                                                rows={6}
-                                                className="font-mono text-sm"
-                                            />
+                                            <div className="border rounded-md overflow-hidden">
+                                                <CodeMirror
+                                                    value={data.pre_script}
+                                                    height="200px"
+                                                    extensions={[StreamLanguage.define(shell)]}
+                                                    onChange={(value) => setData('pre_script', value)}
+                                                    theme={theme === 'dark' ? 'dark' : 'light'}
+                                                    placeholder="#!/bin/bash\n\n# Enter script to run before task execution"
+                                                    basicSetup={{
+                                                        lineNumbers: true,
+                                                        highlightActiveLineGutter: true,
+                                                        highlightSpecialChars: true,
+                                                        foldGutter: true,
+                                                        drawSelection: true,
+                                                        dropCursor: true,
+                                                        allowMultipleSelections: true,
+                                                        indentOnInput: true,
+                                                        bracketMatching: true,
+                                                        closeBrackets: true,
+                                                        autocompletion: true,
+                                                        rectangularSelection: true,
+                                                        crosshairCursor: true,
+                                                        highlightActiveLine: true,
+                                                        highlightSelectionMatches: true,
+                                                        closeBracketsKeymap: true,
+                                                        searchKeymap: true,
+                                                        foldKeymap: true,
+                                                        completionKeymap: true,
+                                                        lintKeymap: true,
+                                                    }}
+                                                />
+                                            </div>
                                             <p className="text-xs text-muted-foreground">
                                                 Script that will be executed before the task starts.
                                             </p>
@@ -319,14 +371,38 @@ export default function EditTask({ task, servers = [] }: EditTaskProps) {
 
                                         <div className="space-y-2">
                                             <Label htmlFor="post_script">Post-script (Optional)</Label>
-                                            <Textarea
-                                                id="post_script"
-                                                value={data.post_script}
-                                                onChange={(e) => setData('post_script', e.target.value)}
-                                                placeholder="Enter script to run after task execution"
-                                                rows={6}
-                                                className="font-mono text-sm"
-                                            />
+                                            <div className="border rounded-md overflow-hidden">
+                                                <CodeMirror
+                                                    value={data.post_script}
+                                                    height="200px"
+                                                    extensions={[StreamLanguage.define(shell)]}
+                                                    onChange={(value) => setData('post_script', value)}
+                                                    theme={theme === 'dark' ? 'dark' : 'light'}
+                                                    placeholder="#!/bin/bash\n\n# Enter script to run after task execution"
+                                                    basicSetup={{
+                                                        lineNumbers: true,
+                                                        highlightActiveLineGutter: true,
+                                                        highlightSpecialChars: true,
+                                                        foldGutter: true,
+                                                        drawSelection: true,
+                                                        dropCursor: true,
+                                                        allowMultipleSelections: true,
+                                                        indentOnInput: true,
+                                                        bracketMatching: true,
+                                                        closeBrackets: true,
+                                                        autocompletion: true,
+                                                        rectangularSelection: true,
+                                                        crosshairCursor: true,
+                                                        highlightActiveLine: true,
+                                                        highlightSelectionMatches: true,
+                                                        closeBracketsKeymap: true,
+                                                        searchKeymap: true,
+                                                        foldKeymap: true,
+                                                        completionKeymap: true,
+                                                        lintKeymap: true,
+                                                    }}
+                                                />
+                                            </div>
                                             <p className="text-xs text-muted-foreground">
                                                 Script that will be executed after the task completes.
                                             </p>
