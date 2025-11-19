@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { PlusIcon, Trash2Icon } from 'lucide-react';
+import { toast } from 'sonner';
 import CodeMirror from '@uiw/react-codemirror';
 import { yaml } from '@codemirror/lang-yaml';
 import { StreamLanguage } from '@codemirror/language';
@@ -138,7 +139,22 @@ export default function EditTask({ task, servers = [] }: EditTaskProps) {
             warning_timer_sound: data.timer > 0 ? data.warning_timer_sound : false,
         };
 
-        router.put(`/tasks/${task.id}`, submitData as any);
+        router.put(`/tasks/${task.id}`, submitData as any, {
+            onSuccess: () => {
+                toast.success('Task updated successfully!');
+            },
+            onError: (errors) => {
+                // Show a general error toast
+                const errorMessages = Object.values(errors).flat();
+                if (errorMessages.length > 0) {
+                    toast.error('Failed to update task', {
+                        description: errorMessages[0] as string,
+                    });
+                } else {
+                    toast.error('Failed to update task. Please check the form and try again.');
+                }
+            },
+        });
     };
 
     const handleDelete = () => {

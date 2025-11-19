@@ -35,7 +35,7 @@ class SetDockerComposeJob extends BaseWorkspaceJob
 
     public function getTrackableModel(): TracksProgressInterface
     {
-        if(!isset($this->attempt)) {
+        if (!isset($this->attempt)) {
             $this->attempt = UserTaskAttempt::find($this->attemptId);
         }
         return $this->attempt;
@@ -48,13 +48,13 @@ class SetDockerComposeJob extends BaseWorkspaceJob
         $script = ScriptDescriptor::make(
             'scripts.set_docker_compose_yaml',
             [
-                'pre_scripts' => $this->attempt->task->pre_script || '',
-                'post_scripts' => $this->attempt->task->post_script || '',
+                'pre_scripts' => $this->attempt->task->pre_script ?? '',
+                'post_scripts' => $this->attempt->task->post_script ?? '',
                 'workspace_path' => $this->attempt->getMeta('workspace_path'),
                 'docker_compose_yaml' => $this->dockerComposeYaml,
                 'ssh_port' => $this->attempt->getMeta('ssh_port'),
             ],
-            'Set Docker Compose Yaml Script for user '. $this->attempt->user->name
+            'Set Docker Compose Yaml Script for user ' . $this->attempt->user->name
         );
 
         $this->attempt->appendNote("Setting docker-compose.yaml for workspace");
@@ -77,12 +77,11 @@ class SetDockerComposeJob extends BaseWorkspaceJob
 
         // Update progress: job completed
         $this->attempt->addMeta(['current_step' => 'setting_docker_compose_completed']);
-
     }
 
     protected function failed(Throwable $exception): void
     {
-        $this->attempt->appendNote("Failed to set docker-compose.yaml: ".$exception->getMessage());
+        $this->attempt->appendNote("Failed to set docker-compose.yaml: " . $exception->getMessage());
         $this->jobRun->update([
             'status' => 'failed',
             'error_output' => "Failed to set docker-compose.yaml: " . $exception->getMessage(),
@@ -95,4 +94,3 @@ class SetDockerComposeJob extends BaseWorkspaceJob
         ]);
     }
 }
-

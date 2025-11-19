@@ -34,7 +34,7 @@ class RunPreScriptJob extends BaseWorkspaceJob
     }
     public function getTrackableModel(): TracksProgressInterface
     {
-        if(!isset($this->attempt)) {
+        if (!isset($this->attempt)) {
             $this->attempt = UserTaskAttempt::find($this->attemptId);
         }
         return $this->attempt;
@@ -48,7 +48,7 @@ class RunPreScriptJob extends BaseWorkspaceJob
         $script = ScriptDescriptor::make(
             'scripts.run_pre_script',
             [
-                'pre_scripts' => $this->attempt->task->pre_script || '',
+                'pre_scripts' => $this->attempt->task->pre_script ?? '',
                 'workspace_path' => $this->attempt->getMeta('workspace_path'),
             ],
             'Run Pre Script for ' . $this->attempt->user->name
@@ -72,7 +72,7 @@ class RunPreScriptJob extends BaseWorkspaceJob
 
     protected function failed(Throwable $exception): void
     {
-        $this->attempt->appendNote("Failed to run pre script: ".$exception->getMessage());
+        $this->attempt->appendNote("Failed to run pre script: " . $exception->getMessage());
         $this->jobRun->update([
             'status' => 'failed',
             'error_output' => "Failed to run pre script: " . $exception->getMessage(),

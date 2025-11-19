@@ -33,7 +33,7 @@ class RunPostScriptJob extends BaseWorkspaceJob
     }
     public function getTrackableModel(): TracksProgressInterface
     {
-        if(!isset($this->attempt)) {
+        if (!isset($this->attempt)) {
             $this->attempt = UserTaskAttempt::find($this->attemptId);
         }
         return $this->attempt;
@@ -45,7 +45,7 @@ class RunPostScriptJob extends BaseWorkspaceJob
         $script = ScriptDescriptor::make(
             'scripts.run_post_script',
             [
-                'post_scripts' => $this->attempt->task->post_script || '',
+                'post_scripts' => $this->attempt->task->post_script ?? '',
                 'workspace_path' => $this->attempt->getMeta('workspace_path'),
             ],
             'Run Post Script for ' . $this->attempt->user->name
@@ -68,7 +68,7 @@ class RunPostScriptJob extends BaseWorkspaceJob
 
     protected function failed(Throwable $exception): void
     {
-        $this->attempt->appendNote("Failed to run post script: ".$exception->getMessage());
+        $this->attempt->appendNote("Failed to run post script: " . $exception->getMessage());
         $this->jobRun->update([
             'status' => 'failed',
             'error_output' => "Failed to run post script: " . $exception->getMessage(),

@@ -23,13 +23,12 @@ class TaskController extends Controller
     public function index(): Response
     {
         $tasks = Task::with('user')
-                ->latest()
-                ->paginate(10);
+            ->latest()
+            ->paginate(10);
 
         return Inertia::render('tasks/index', [
             'tasks' => $tasks,
         ]);
-
     }
 
     /**
@@ -40,7 +39,7 @@ class TaskController extends Controller
         $servers = \App\Models\Server::query()
             ->where('status', 'provisioned')
             ->orderBy('name')
-            ->get(['id','name','ip_address']);
+            ->get(['id', 'name', 'ip_address']);
 
         return Inertia::render('tasks/create', [
             'servers' => $servers,
@@ -126,16 +125,15 @@ class TaskController extends Controller
     public function show(Task $task): Response
     {
 
-
         if (!$task) {
             abort(404, 'Task not found');
         }
 
         // Load judge configurations
-        $task = $this->loadJudgeConfigurations($task);
+        $judgeData = $this->loadJudgeConfigurations($task);
 
         return Inertia::render('tasks/show', [
-            'task' => $task,
+            'task' => array_merge($task->toArray(), $judgeData),
         ]);
     }
 
@@ -145,16 +143,16 @@ class TaskController extends Controller
     public function edit(Task $task): Response
     {
         // Load judge configurations
-        $task = $this->loadJudgeConfigurations($task);
+        $judgeData = $this->loadJudgeConfigurations($task);
 
         // Get available servers for selection
         $servers = \App\Models\Server::query()
             ->where('status', 'provisioned')
             ->orderBy('name')
-            ->get(['id','name','ip_address']);
+            ->get(['id', 'name', 'ip_address']);
 
         return Inertia::render('tasks/edit', [
-            'task' => $task,
+            'task' => array_merge($task->toArray(), $judgeData),
             'servers' => $servers,
         ]);
     }
@@ -312,14 +310,22 @@ class TaskController extends Controller
     /**
      * Load judge configurations for a task
      */
-    private function loadJudgeConfigurations(Task $task): Task
+    private function loadJudgeConfigurations(Task $task): array
     {
         // Load all judge relationships
         $task->load(['aiJudges', 'quizJudges.quizQuestionAnswers', 'textJudges', 'autoJudge']);
 
+        // Prepare judge data array
+        $judgeData = [
+            'ai_judges' => [],
+            'quiz_questions' => [],
+            'text_judges' => [],
+            'judge_script' => '',
+        ];
+
         // Format data for frontend
         if ($task->judge_type === 'AiJudge') {
-            $task->ai_judges = $task->aiJudges->map(function ($aiJudge) {
+            $judgeData['ai_judges'] = $task->aiJudges->map(function ($aiJudge) {
                 return [
                     'prompt' => $aiJudge->prompt,
                     'question' => $aiJudge->question,
@@ -329,7 +335,7 @@ class TaskController extends Controller
         }
 
         if ($task->judge_type === 'QuizJudge') {
-            $task->quiz_questions = $task->quizJudges->map(function ($quizJudge) {
+            $judgeData['quiz_questions'] = $task->quizJudges->map(function ($quizJudge) {
                 return [
                     'question' => json_decode($quizJudge->questions, true),
                     'options' => $quizJudge->quizQuestionAnswers->map(function ($answer) {
@@ -343,7 +349,7 @@ class TaskController extends Controller
         }
 
         if ($task->judge_type === 'TextJudge') {
-            $task->text_judges = $task->textJudges->map(function ($textJudge) {
+            $judgeData['text_judges'] = $task->textJudges->map(function ($textJudge) {
                 return [
                     'question' => $textJudge->questions,
                     'answer' => $textJudge->answers,
@@ -352,9 +358,9 @@ class TaskController extends Controller
         }
 
         if ($task->judge_type === 'AutoJudge' && $task->autoJudge) {
-            $task->judge_script = $task->autoJudge->judge_script;
+            $judgeData['judge_script'] = $task->autoJudge->judge_script;
         }
 
-        return $task;
+        return $judgeData;
     }
 }
