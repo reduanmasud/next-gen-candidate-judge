@@ -7,6 +7,8 @@ use App\Jobs\CloseUserTaskAttemptJob;
 use App\Jobs\Scripts\Server\FindFreePort;
 use App\Jobs\Scripts\Workspace\CreateUserJob;
 use App\Jobs\Scripts\Workspace\FinalizeWorkspaceJob;
+use App\Jobs\Scripts\Workspace\RunPostScriptJob;
+use App\Jobs\Scripts\Workspace\RunPreScriptJob;
 use App\Jobs\Scripts\Workspace\SetDockerComposeJob;
 use App\Jobs\Scripts\Workspace\SetSshAccessToContainerJob;
 use App\Jobs\Scripts\Workspace\StartDockerComposeJob;
@@ -78,6 +80,7 @@ class WorkspaceService
             $jobs = [];
             $jobs[] = new CreateUserJob($attempt->id, $attempt->task->server->id);
             $jobs[] = new FindFreePort($attempt->task->server->id, $attempt->id);
+            $jobs[] = new RunPreScriptJob($attempt->id, $attempt->task->server->id);
             $jobs[] = new SetDockerComposeJob($attempt->id, $this->yamlFillWithData($task->docker_compose_yaml, [
                     "attempt_name" => $attempt_randorm_uid,
                     "domain" => $attempt->getMeta('domain'),
@@ -86,10 +89,12 @@ class WorkspaceService
                 ]));
             $jobs[] = new StartDockerComposeJob($attempt->id, $attempt->task->server->id);
 
+            $jobs[] = new RunPostScriptJob($attempt->id, $attempt->task->server->id);
             if($attempt->task->allowssh)
             {
                 $jobs[] = new SetSshAccessToContainerJob($attempt->id, $attempt->task->server->id);
             }
+
 
             $jobs[] = new FinalizeWorkspaceJob($attempt->id);
 
