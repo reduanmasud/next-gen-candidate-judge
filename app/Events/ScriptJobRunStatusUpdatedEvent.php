@@ -3,6 +3,7 @@
 namespace App\Events;
 
 use Illuminate\Broadcasting\Channel;
+use App\Enums\ScriptJobStatus;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PresenceChannel;
 use Illuminate\Broadcasting\PrivateChannel;
@@ -19,7 +20,7 @@ class ScriptJobRunStatusUpdatedEvent implements ShouldBroadcast
      */
     public function __construct(
         public int $jobRunId,
-        public string $status,
+        public string|ScriptJobStatus $status,
     ) {
         //
     }
@@ -35,14 +36,12 @@ class ScriptJobRunStatusUpdatedEvent implements ShouldBroadcast
             new PrivateChannel('job-runs-updated'),
         ];
     }
-    
+
     public function broadcastWith(): array
     {
         return [
             'jobRunId' => $this->jobRunId,
-            'status' => $this->status,
+            'status' => $this->status instanceof ScriptJobStatus ? $this->status->value : $this->status,
         ];
     }
-
-
 }

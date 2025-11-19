@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Events\ScriptJobRunCreatedEvent;
 use App\Events\ScriptJobRunStatusUpdatedEvent;
+use App\Enums\ScriptJobStatus;
 use App\Scripts\ScriptDescriptor;
 use App\Services\ScriptEngine;
 use App\Services\ScriptWrapper;
@@ -43,7 +44,7 @@ class ScriptJobRun extends Model
         'server_id',
         'task_id',
         'attempt_id',
-    ];  
+    ];
 
     protected $casts = [
         'started_at' => 'datetime',
@@ -53,6 +54,7 @@ class ScriptJobRun extends Model
         'cancelled_at' => 'datetime',
         'timed_out_at' => 'datetime',
         'metadata' => 'array',
+        'status' => ScriptJobStatus::class,
     ];
 
 
@@ -77,14 +79,14 @@ class ScriptJobRun extends Model
     }
 
 
-    protected function execute(ScriptEngine $engine, ?Server $server): array 
+    protected function execute(ScriptEngine $engine, ?Server $server): array
     {
         if ($server) {
             $engine->setServer($server);
         }
 
         $this->update([
-            'status' => 'running',
+            'status' => ScriptJobStatus::RUNNING,
             'started_at' => now(),
         ]);
 
@@ -97,17 +99,16 @@ class ScriptJobRun extends Model
             }
 
             $this->update([
-                'status' => 'completed',
+                'status' => ScriptJobStatus::COMPLETED,
                 'output' => $result['output'] ?? '',
                 'error_output' => $result['error_output'] ?? '',
                 'exit_code' => $result['exit_code'] ?? 0,
                 'completed_at' => now(),
             ]);
-
-        } catch  (Throwable $e) {
+        } catch (Throwable $e) {
 
             $this->update([
-                'status' => 'failed',
+                'status' => ScriptJobStatus::FAILED,
                 'error_output' => $e->getMessage(),
                 'failed_at' => now(),
                 'completed_at' => now(),
@@ -116,23 +117,23 @@ class ScriptJobRun extends Model
             throw $e;
         }
 
-        return [ $this, $result ];
+        return [$this, $result];
     }
 
     public static function createAndExecute(
-        ScriptDescriptor $script, 
-        ScriptEngine $engine, 
+        ScriptDescriptor $script,
+        ScriptEngine $engine,
         ?UserTaskAttempt $attempt = null,
         ?Server $server = null,
         array $metadata = []
-        ): array {
+    ): array {
 
         $wrappedScript = (new ScriptWrapper())->wrap(view($script->template, $script->data)->render());
 
         $jobRun = static::create([
             'script_name' => $script->name,
             'script_path' => $script->template,
-            'status' => 'pending',
+            'status' => ScriptJobStatus::PENDING,
             'user_id' => $attempt?->user_id,
             'server_id' => $server?->id,
             'attempt_id' => $attempt?->id,
@@ -147,22 +148,22 @@ class ScriptJobRun extends Model
     // Scopes for filtering
     public function scopePending($query)
     {
-        return $query->where('status', 'pending');
+        return $query->where('status', ScriptJobStatus::PENDING);
     }
 
     public function scopeRunning($query)
     {
-        return $query->where('status', 'running');
+        return $query->where('status', ScriptJobStatus::RUNNING);
     }
 
     public function scopeCompleted($query)
     {
-        return $query->where('status', 'completed');
+        return $query->where('status', ScriptJobStatus::COMPLETED);
     }
 
     public function scopeFailed($query)
     {
-        return $query->where('status', 'failed');
+        return $query->where('status', ScriptJobStatus::FAILED);
     }
 
 
@@ -177,12 +178,12 @@ class ScriptJobRun extends Model
 
         // Broadcast status updates
         static::updated(function ($jobRun) {
-            if($jobRun->wasChanged('status'))
+            if ($jobRun->wasChanged('status'))
                 broadcast(new ScriptJobRunStatusUpdatedEvent(
-                    jobRunId: $jobRun->id, 
-                    status: $jobRun->status))
-                    ->toOthers();  
-
+                    jobRunId: $jobRun->id,
+                    status: $jobRun->status
+                ))
+                    ->toOthers();
         });
     }
 }

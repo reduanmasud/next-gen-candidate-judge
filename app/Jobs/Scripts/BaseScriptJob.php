@@ -4,6 +4,7 @@ namespace App\Jobs\Scripts;
 
 use App\Contracts\DescribesProgressStep;
 use App\Contracts\TracksProgressInterface;
+use App\Enums\ScriptJobStatus;
 use App\Models\ScriptJobRun;
 use App\Models\User;
 use App\Services\ScriptWrapper;
@@ -70,7 +71,7 @@ abstract class BaseScriptJob implements ShouldQueue, DescribesProgressStep
         $steps = $trackable->getWorkflowSteps();
 
         $steps[$stepId] = [
-            'status' => 'in-progress',
+            'status' => ScriptJobStatus::IN_PROGRESS,
             'started_at' => now()->toIso8601String(),
             'completed_at' => null,
             'failed_at' => null,
@@ -86,7 +87,7 @@ abstract class BaseScriptJob implements ShouldQueue, DescribesProgressStep
     private function trackStepComplete(TracksProgressInterface $trackable, string $stepId): void
     {
         $trackable->updateWorkflowStep($stepId, [
-            'status' => 'completed',
+            'status' => ScriptJobStatus::COMPLETED,
             'completed_at' => now()->toIso8601String(),
         ]);
 
@@ -97,7 +98,7 @@ abstract class BaseScriptJob implements ShouldQueue, DescribesProgressStep
         if ($workflowDefinition) {
             $totalSteps = count($workflowDefinition['steps']);
             $completedSteps = collect($trackable->getWorkflowSteps())
-                ->where('status', 'completed')
+                ->where('status', ScriptJobStatus::COMPLETED)
                 ->count();
 
             if ($completedSteps === $totalSteps) {
@@ -108,19 +109,18 @@ abstract class BaseScriptJob implements ShouldQueue, DescribesProgressStep
                 $trackable->addMeta(['current_step' => $stepId]);
             }
         }
-
     }
 
     private function trackStepFailed(TracksProgressInterface $trackable, string $stepId, Throwable $e): void
     {
         $trackable->updateWorkflowStep($stepId, [
-            'status' => 'failed',
+            'status' => ScriptJobStatus::FAILED,
             'failed_at' => now()->toIso8601String(),
             'error_message' => $e->getMessage(),
         ]);
 
         $trackable->addMeta([
-            'current_step' => 'failed',
+            'current_step' => ScriptJobStatus::FAILED,
             'failed_step' => $stepId,
             // 'current_step' => "{$stepId}_failed"
         ]);
@@ -134,5 +134,4 @@ abstract class BaseScriptJob implements ShouldQueue, DescribesProgressStep
         }
         return $this->wrapper;
     }
-
 }

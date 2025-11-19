@@ -3,6 +3,7 @@
 namespace App\Events;
 
 use Illuminate\Broadcasting\Channel;
+use App\Enums\ScriptJobStatus;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
@@ -18,7 +19,7 @@ class WorkspaceStatusUpdatedEvent implements ShouldBroadcast
      */
     public function __construct(
         public int $attemptId,
-        public string $status,
+        public string|ScriptJobStatus $status,
         public ?string $currentStep = null,
         public ?array $metadata = null,
     ) {
@@ -54,10 +55,9 @@ class WorkspaceStatusUpdatedEvent implements ShouldBroadcast
     {
         return [
             'attemptId' => $this->attemptId,
-            'status' => $this->status,
+            'status' => $this->status instanceof ScriptJobStatus ? $this->status->value : $this->status,
             'currentStep' => $this->currentStep,
             'metadata' => $this->metadata,
         ];
     }
 }
-

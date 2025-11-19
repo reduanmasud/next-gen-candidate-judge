@@ -3,6 +3,7 @@
 namespace App\Traits;
 
 use App\Services\Progress\WorkflowRegistry;
+use App\Enums\ScriptJobStatus;
 
 /**
  * Trait for models that support progress tracking
@@ -54,10 +55,10 @@ trait TracksProgress
      */
     public function isWorkflowRunning(): bool
     {
-        $currentStep = $this->getCurrentStepId();
+        $currentStep = ScriptJobStatus::tryFrom($this->getCurrentStepId());
         return $currentStep !== null
-            && $currentStep !== 'completed'
-            && $currentStep !== 'failed';
+            && $currentStep !== ScriptJobStatus::COMPLETED
+            && $currentStep !== ScriptJobStatus::FAILED;
     }
 
     /**
@@ -65,7 +66,7 @@ trait TracksProgress
      */
     public function isWorkflowCompleted(): bool
     {
-        return $this->getCurrentStepId() === 'completed';
+        return ScriptJobStatus::tryFrom($this->getCurrentStepId()) === ScriptJobStatus::COMPLETED;
     }
 
     /**
@@ -73,7 +74,7 @@ trait TracksProgress
      */
     public function isWorkflowFailed(): bool
     {
-        return $this->getCurrentStepId() === 'failed';
+        return ScriptJobStatus::tryFrom($this->getCurrentStepId()) === ScriptJobStatus::FAILED;
     }
 
     /**
@@ -136,8 +137,27 @@ trait TracksProgress
     public function completeWorkflow(): void
     {
         $this->addMeta([
-            'current_step' => 'completed',
+            'current_step' => ScriptJobStatus::COMPLETED,
             'workflow_completed_at' => now()->toIso8601String(),
         ]);
+    }
+
+    public function getWorkflowStatus(): ?ScriptJobStatus
+    {
+        $currentStep = ScriptJobStatus::tryFrom($this->getCurrentStepId());
+
+        if ($currentStep === ScriptJobStatus::COMPLETED) {
+            return ScriptJobStatus::COMPLETED;
+        }
+
+        if ($currentStep === ScriptJobStatus::FAILED) {
+            return ScriptJobStatus::FAILED;
+        }
+
+        if ($currentStep !== null) {
+            return ScriptJobStatus::RUNNING;
+        }
+
+        return null;
     }
 }

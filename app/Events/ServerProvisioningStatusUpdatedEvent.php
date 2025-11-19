@@ -3,6 +3,7 @@
 namespace App\Events;
 
 use Illuminate\Broadcasting\Channel;
+use App\Enums\ScriptJobStatus;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
@@ -18,7 +19,7 @@ class ServerProvisioningStatusUpdatedEvent implements ShouldBroadcast
      */
     public function __construct(
         public int $serverId,
-        public string $status,
+        public string|ScriptJobStatus $status,
         public ?string $currentStep = null,
         public ?array $metadata = null,
     ) {
@@ -33,7 +34,7 @@ class ServerProvisioningStatusUpdatedEvent implements ShouldBroadcast
     public function broadcastOn(): array
     {
         return [
-            new PrivateChannel('server-updates.'.$this->serverId),
+            new PrivateChannel('server-updates.' . $this->serverId),
         ];
     }
 
@@ -54,10 +55,9 @@ class ServerProvisioningStatusUpdatedEvent implements ShouldBroadcast
     {
         return [
             'serverId' => $this->serverId,
-            'status' => $this->status,
+            'status' => $this->status instanceof ScriptJobStatus ? $this->status->value : $this->status,
             'currentStep' => $this->currentStep,
             'metadata' => $this->metadata,
         ];
     }
 }
-
