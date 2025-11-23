@@ -124,6 +124,27 @@ class UserController extends Controller
     }
 
     /**
+     * Determine the display status based on attempt status and notes.
+     */
+    private function getDisplayStatus(UserTaskAttempt $attempt): string
+    {
+        $status = $attempt->status->value;
+
+        // Check if it's a timeout by examining the notes
+        if ($status === 'terminated' && str_contains($attempt->notes ?? '', 'timeout')) {
+            return 'timeout';
+        }
+
+        // Map other statuses
+        return match ($status) {
+            'attempted_failed' => 'failed',
+            'completed' => 'completed',
+            'terminated' => 'terminated',
+            default => $status,
+        };
+    }
+
+    /**
      * Display the specified user with detailed statistics.
      */
     public function show(User $user): Response
@@ -182,6 +203,13 @@ class UserController extends Controller
             ->sortByDesc('latest_attempt_date')
             ->values();
 
+        // Add display_status to attempts
+        $attemptsWithDisplayStatus = $user->attempts->map(function ($attempt) {
+            $attemptArray = $attempt->toArray();
+            $attemptArray['display_status'] = $this->getDisplayStatus($attempt);
+            return $attemptArray;
+        });
+
         return Inertia::render('users/show', [
             'user' => [
                 'id' => $user->id,
@@ -192,7 +220,7 @@ class UserController extends Controller
                 'created_at' => $user->created_at,
                 'is_admin' => $user->hasRole('admin'),
                 'role' => $user->roles->first()?->name ?? 'user',
-                'attempts' => $user->attempts,
+                'attempts' => $attemptsWithDisplayStatus,
                 'task_locks' => $user->taskLocks,
             ],
             'stats' => [
@@ -240,6 +268,7 @@ class UserController extends Controller
             return [
                 'id' => $attempt->id,
                 'status' => $attempt->status,
+                'display_status' => $this->getDisplayStatus($attempt),
                 'score' => $attempt->score,
                 'started_at' => $attempt->started_at,
                 'completed_at' => $attempt->completed_at,

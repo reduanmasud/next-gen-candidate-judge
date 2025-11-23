@@ -22,6 +22,7 @@ interface TaskAttempt {
     id: number;
     task_id: number;
     status: string;
+    display_status: string;
     score: number;
     started_at: string;
     completed_at: string | null;
@@ -93,24 +94,40 @@ export default function UserShow({ user, stats, taskAttemptsSummary }: UserShowP
         return new Date(dateString).toLocaleString();
     };
 
-    const getStatusBadge = (status: string) => {
+    const getStatusBadge = (displayStatus: string) => {
         const statusConfig: Record<string, { label: string; className: string }> = {
             completed: {
                 label: 'Completed',
                 className: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
             },
-            in_progress: {
-                label: 'In Progress',
-                className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+            timeout: {
+                label: 'Timeout',
+                className: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
             },
             failed: {
                 label: 'Failed',
                 className: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
             },
+            terminated: {
+                label: 'Terminated',
+                className: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+            },
+            running: {
+                label: 'Running',
+                className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+            },
+            in_progress: {
+                label: 'In Progress',
+                className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+            },
+            pending: {
+                label: 'Pending',
+                className: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400',
+            },
         };
 
-        const config = statusConfig[status] || {
-            label: status,
+        const config = statusConfig[displayStatus] || {
+            label: displayStatus.charAt(0).toUpperCase() + displayStatus.slice(1),
             className: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400',
         };
 
@@ -355,7 +372,7 @@ export default function UserShow({ user, stats, taskAttemptsSummary }: UserShowP
                                                             Score
                                                         </p>
                                                     </div>
-                                                    {getStatusBadge(attempt.status)}
+                                                    {getStatusBadge(attempt.display_status)}
                                                 </div>
                                             </div>
                                         </div>
