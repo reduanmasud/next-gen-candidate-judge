@@ -115,7 +115,7 @@ export default function UserTaskWorkspace({
     judgeData,
     workflow: initialWorkflow,
 
- }: UserTaskWorkspaceProps) {
+}: UserTaskWorkspaceProps) {
     const { auth } = usePage<SharedData>().props;
     const [attempt, setAttempt] = useState<AttemptResource>(initialAttempt);
     const [metadata, setMetadata] = useState<MetadataResource>(initialMetadata);
@@ -154,8 +154,10 @@ export default function UserTaskWorkspace({
         onComplete: () => {
             console.log('Workflow completed!');
 
-            attempt.status = 'running';
-            router.reload();
+            setTimeout(() => {
+                attempt.status = 'running';
+                router.reload();
+            }, 1500);
         },
         onFail: (errorMessage) => {
             console.log('Workflow failed!', errorMessage);
@@ -426,9 +428,8 @@ export default function UserTaskWorkspace({
                                                             strokeWidth="8"
                                                             fill="none"
                                                             strokeDasharray={`${2 * Math.PI * 56}`}
-                                                            strokeDashoffset={`${
-                                                                2 * Math.PI * 56 * (1 - timeRemaining / (task.timer * 60))
-                                                            }`}
+                                                            strokeDashoffset={`${2 * Math.PI * 56 * (1 - timeRemaining / (task.timer * 60))
+                                                                }`}
                                                             className="text-primary transition-all duration-1000"
                                                             strokeLinecap="round"
                                                         />
