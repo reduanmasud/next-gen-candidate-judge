@@ -21,6 +21,8 @@ interface SubmissionResult {
     should_lock: boolean;
     next_attempt_max_score: number;
     attempt_number: number;
+    can_retry?: boolean;
+    remaining_submissions?: number;
 }
 
 interface AiJudgeProgressModalProps {
@@ -214,10 +216,10 @@ export default function AiJudgeProgressModal({ open, result, taskScore }: AiJudg
                                     <MessageSquare className="h-4 w-4" />
                                     <span>AI Feedback</span>
                                 </div>
-                                
+
                                 <div className="space-y-4 max-h-96 overflow-y-auto">
                                     {result.details.map((detail, index) => (
-                                        <div 
+                                        <div
                                             key={detail.question_id}
                                             className="border rounded-lg p-4 space-y-3 bg-white dark:bg-gray-900"
                                         >
@@ -238,7 +240,7 @@ export default function AiJudgeProgressModal({ open, result, taskScore }: AiJudg
                                                     </p>
                                                 </div>
                                             </div>
-                                            
+
                                             <div className="pl-6">
                                                 <p className="text-xs font-medium text-muted-foreground mb-1">
                                                     Your Answer:
@@ -261,14 +263,34 @@ export default function AiJudgeProgressModal({ open, result, taskScore }: AiJudg
                                 </div>
                             </div>
 
-                            {/* Return Button */}
-                            <Button 
-                                onClick={handleReturnToTasks} 
-                                className="w-full"
-                                size="lg"
-                            >
-                                Return to Tasks
-                            </Button>
+                            {/* Action Buttons */}
+                            {result.can_retry ? (
+                                <div className="flex gap-3">
+                                    <Button
+                                        onClick={handleReturnToTasks}
+                                        variant="outline"
+                                        className="flex-1"
+                                        size="lg"
+                                    >
+                                        Return to Tasks
+                                    </Button>
+                                    <Button
+                                        onClick={() => window.location.reload()}
+                                        className="flex-1"
+                                        size="lg"
+                                    >
+                                        Try Again ({result.remaining_submissions} remaining)
+                                    </Button>
+                                </div>
+                            ) : (
+                                <Button
+                                    onClick={handleReturnToTasks}
+                                    className="w-full"
+                                    size="lg"
+                                >
+                                    Return to Tasks
+                                </Button>
+                            )}
                         </>
                     )}
                 </div>

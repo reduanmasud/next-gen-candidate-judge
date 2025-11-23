@@ -26,6 +26,8 @@ interface SubmissionResult {
     should_lock: boolean;
     next_attempt_max_score: number;
     attempt_number: number;
+    can_retry?: boolean;
+    remaining_submissions?: number;
 }
 
 interface SubmissionResultModalProps {
@@ -180,9 +182,20 @@ export default function SubmissionResultModal({
 
                     {/* Actions */}
                     <div className="flex justify-end gap-3 pt-4 border-t">
-                        <Button onClick={onClose}>
-                            Close
-                        </Button>
+                        {result.can_retry ? (
+                            <>
+                                <Button variant="outline" onClick={onClose}>
+                                    Close
+                                </Button>
+                                <Button onClick={() => window.location.reload()}>
+                                    Try Again ({result.remaining_submissions} remaining)
+                                </Button>
+                            </>
+                        ) : (
+                            <Button onClick={onClose}>
+                                Close
+                            </Button>
+                        )}
                     </div>
                 </div>
             </DialogContent>

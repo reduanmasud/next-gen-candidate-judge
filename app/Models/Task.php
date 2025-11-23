@@ -24,6 +24,7 @@ class Task extends Model
         'timer',
         'warrning_timer',
         'warning_timer_sound',
+        'max_submission',
     ];
 
     protected $casts = [
@@ -35,12 +36,14 @@ class Task extends Model
         'warning_timer_sound' => 'boolean',
         'score' => 'integer',
         'server_id' => 'integer',
+        'max_submission' => 'integer',
     ];
 
     protected $attributes = [
         'timer' => null,
         'warrning_timer' => null,
         'warning_timer_sound' => false,
+        'max_submission' => 3,
     ];
 
     public function user()

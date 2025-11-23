@@ -88,6 +88,7 @@ export default function CreateTask({ servers = [] as { id: number; name: string;
         timer: 0,
         warrning_timer: 0,
         warning_timer_sound: false,
+        max_submission: 3,
     });
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -818,6 +819,25 @@ export default function CreateTask({ servers = [] as { id: number; name: string;
                                             </div>
                                         </div>
                                     )}
+                                </div>
+
+                                <Separator />
+
+                                {/* Max Submission Section */}
+                                <div className="space-y-2">
+                                    <Label htmlFor="max_submission">Maximum Submissions per Attempt</Label>
+                                    <Input
+                                        id="max_submission"
+                                        type="number"
+                                        min="1"
+                                        value={data.max_submission}
+                                        onChange={(e) => setData('max_submission', parseInt(e.target.value) || 3)}
+                                        placeholder="Enter maximum submissions"
+                                    />
+                                    <p className="text-xs text-muted-foreground">
+                                        Number of times a user can submit their work per attempt before needing to start a new attempt
+                                    </p>
+                                    <InputError message={errors.max_submission} />
                                 </div>
 
                                 <Separator />

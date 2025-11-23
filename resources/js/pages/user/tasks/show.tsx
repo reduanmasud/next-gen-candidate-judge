@@ -271,7 +271,11 @@ export default function UserTaskWorkspace({
             );
 
             if (response.data.success) {
-                setSubmissionResult(response.data.result);
+                setSubmissionResult({
+                    ...response.data.result,
+                    can_retry: response.data.can_retry,
+                    remaining_submissions: response.data.remaining_submissions,
+                });
                 setIsTaskLocked(response.data.locked);
 
                 // Show progress modal for QuizJudge and TextJudge

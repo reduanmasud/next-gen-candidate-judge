@@ -323,6 +323,10 @@ class UserTaskController extends Controller
             $judgeService = new TextJudgeService();
             $result = $judgeService->evaluate($task, $attempt, $answers);
 
+            // Increment submission count
+            $attempt->increment('submission_count');
+            $currentSubmissionCount = $attempt->submission_count;
+
             // Save the attempt answer
             UserTaskAttemptAnswer::create([
                 'user_task_attempt_id' => $attempt->id,
@@ -331,16 +335,10 @@ class UserTaskController extends Controller
                 'notes' => $this->formatResultNotes($result),
             ]);
 
-            // Update the attempt
-            $attempt->update([
-                'status' => AttemptTaskStatus::ATTEMPTED_FAILED,
-                'completed_at' => now(),
-                'score' => $result['score'],
-            ]);
-
             // Add note to attempt with scoring details
             $noteMessage = sprintf(
-                "Attempt #%d completed. Score: %.2f/%.2f (%.1f%%). Correct answers: %d/%d.",
+                "Submission #%d of attempt #%d. Score: %.2f/%.2f (%.1f%%). Correct answers: %d/%d.",
+                $currentSubmissionCount,
                 $result['attempt_number'],
                 $result['score'],
                 $result['max_score'],
@@ -353,6 +351,8 @@ class UserTaskController extends Controller
             // Check if all answers are correct (100% success)
             $allCorrect = $result['correct_count'] === $result['total_count'];
             $shouldLockDueToSuccess = false;
+            $shouldLockDueToMaxSubmissions = false;
+            $canRetry = false;
 
             if ($allCorrect) {
                 // Lock the task immediately when user gets 100% correct
@@ -364,10 +364,11 @@ class UserTaskController extends Controller
                     ],
                     [
                         'reason' => sprintf(
-                            'Task completed successfully with all answers correct (%d/%d) on attempt #%d. Score: %.2f/%.2f points.',
+                            'Task completed successfully with all answers correct (%d/%d) on attempt #%d, submission #%d. Score: %.2f/%.2f points.',
                             $result['correct_count'],
                             $result['total_count'],
                             $result['attempt_number'],
+                            $currentSubmissionCount,
                             $result['score'],
                             $result['max_score']
                         ),
@@ -376,6 +377,8 @@ class UserTaskController extends Controller
 
                 $attempt->update([
                     'status' => AttemptTaskStatus::COMPLETED,
+                    'completed_at' => now(),
+                    'score' => $result['score'],
                 ]);
 
                 $attempt->appendNote(sprintf(
@@ -385,24 +388,54 @@ class UserTaskController extends Controller
                 ));
 
                 $shouldLockDueToSuccess = true;
-            } elseif ($result['should_lock']) {
-                // Lock due to penalty threshold (too many failed attempts)
-                TaskUserLock::create([
-                    'task_id' => $task->id,
-                    'user_id' => $user->id,
-                    'status' => TaskUserLockStatus::PENALTY,
-                    'reason' => sprintf(
-                        'Task locked: Next attempt\'s maximum possible score (%.2f points) would be below 20%% threshold (%.2f points required)',
-                        $result['next_attempt_max_score'],
-                        $task->score * 0.2
-                    ),
-                ]);
+            } else {
+                // Incorrect submission - check if user can retry
+                $maxSubmissions = $task->max_submission ?? 3;
+                $remainingSubmissions = $maxSubmissions - $currentSubmissionCount;
 
-                $attempt->appendNote(sprintf(
-                    'Task has been locked. Next attempt would have a maximum possible score of %.2f points, which is below the 20%% threshold (%.2f points).',
-                    $result['next_attempt_max_score'],
-                    $task->score * 0.2
-                ));
+                if ($remainingSubmissions > 0) {
+                    // User can retry - keep attempt status as RUNNING
+                    $canRetry = true;
+                    $attempt->update([
+                        'score' => $result['score'],
+                    ]);
+                    $attempt->appendNote(sprintf(
+                        'Incorrect submission. You have %d submission(s) remaining for this attempt.',
+                        $remainingSubmissions
+                    ));
+                } else {
+                    // Max submissions reached - check if should lock or allow new attempt
+                    $attempt->update([
+                        'status' => AttemptTaskStatus::ATTEMPTED_FAILED,
+                        'completed_at' => now(),
+                        'score' => $result['score'],
+                    ]);
+
+                    if ($result['should_lock']) {
+                        // Lock due to penalty threshold (too many failed attempts)
+                        TaskUserLock::create([
+                            'task_id' => $task->id,
+                            'user_id' => $user->id,
+                            'status' => TaskUserLockStatus::PENALTY,
+                            'reason' => sprintf(
+                                'Task locked: Next attempt\'s maximum possible score (%.2f points) would be below 20%% threshold (%.2f points required)',
+                                $result['next_attempt_max_score'],
+                                $task->score * 0.2
+                            ),
+                        ]);
+
+                        $attempt->appendNote(sprintf(
+                            'Maximum submissions reached. Task has been locked. Next attempt would have a maximum possible score of %.2f points, which is below the 20%% threshold (%.2f points).',
+                            $result['next_attempt_max_score'],
+                            $task->score * 0.2
+                        ));
+                        $shouldLockDueToMaxSubmissions = true;
+                    } else {
+                        $attempt->appendNote(sprintf(
+                            'Maximum submissions reached for this attempt. You can start a new attempt with a fresh workspace.'
+                        ));
+                    }
+                }
             }
 
             return response()->json([
@@ -410,11 +443,18 @@ class UserTaskController extends Controller
                 'result' => $result,
                 'locked' => $result['should_lock'] || $shouldLockDueToSuccess,
                 'locked_due_to_success' => $shouldLockDueToSuccess,
+                'can_retry' => $canRetry,
+                'remaining_submissions' => $canRetry ? ($task->max_submission ?? 3) - $currentSubmissionCount : 0,
+                'current_submission_count' => $currentSubmissionCount,
             ]);
         } elseif ($task->judge_type === 'QuizJudge') {
             $judgeService = new QuizJudgeService();
             $result = $judgeService->evaluate($task, $attempt, $answers);
 
+            // Increment submission count
+            $attempt->increment('submission_count');
+            $currentSubmissionCount = $attempt->submission_count;
+
             // Save the attempt answer
             UserTaskAttemptAnswer::create([
                 'user_task_attempt_id' => $attempt->id,
@@ -423,16 +463,10 @@ class UserTaskController extends Controller
                 'notes' => $this->formatResultNotes($result),
             ]);
 
-            // Update the attempt
-            $attempt->update([
-                'status' => AttemptTaskStatus::ATTEMPTED_FAILED,
-                'completed_at' => now(),
-                'score' => $result['score'],
-            ]);
-
             // Add note to attempt with scoring details
             $noteMessage = sprintf(
-                "Attempt #%d completed. Score: %.2f/%.2f (%.1f%%). Correct answers: %d/%d.",
+                "Submission #%d of attempt #%d. Score: %.2f/%.2f (%.1f%%). Correct answers: %d/%d.",
+                $currentSubmissionCount,
                 $result['attempt_number'],
                 $result['score'],
                 $result['max_score'],
@@ -445,6 +479,7 @@ class UserTaskController extends Controller
             // Check if all answers are correct (100% success)
             $allCorrect = $result['correct_count'] === $result['total_count'];
             $shouldLockDueToSuccess = false;
+            $canRetry = false;
 
             if ($allCorrect) {
                 // Lock the task immediately when user gets 100% correct
@@ -456,10 +491,11 @@ class UserTaskController extends Controller
                     ],
                     [
                         'reason' => sprintf(
-                            'Task completed successfully with all answers correct (%d/%d) on attempt #%d. Score: %.2f/%.2f points.',
+                            'Task completed successfully with all answers correct (%d/%d) on attempt #%d, submission #%d. Score: %.2f/%.2f points.',
                             $result['correct_count'],
                             $result['total_count'],
                             $result['attempt_number'],
+                            $currentSubmissionCount,
                             $result['score'],
                             $result['max_score']
                         ),
@@ -468,6 +504,8 @@ class UserTaskController extends Controller
 
                 $attempt->update([
                     'status' => AttemptTaskStatus::COMPLETED,
+                    'completed_at' => now(),
+                    'score' => $result['score'],
                 ]);
 
                 $attempt->appendNote(sprintf(
@@ -477,24 +515,53 @@ class UserTaskController extends Controller
                 ));
 
                 $shouldLockDueToSuccess = true;
-            } elseif ($result['should_lock']) {
-                // Lock due to penalty threshold (too many failed attempts)
-                TaskUserLock::create([
-                    'task_id' => $task->id,
-                    'user_id' => $user->id,
-                    'status' => TaskUserLockStatus::PENALTY,
-                    'reason' => sprintf(
-                        'Task locked: Next attempt\'s maximum possible score (%.2f points) would be below 20%% threshold (%.2f points required)',
-                        $result['next_attempt_max_score'],
-                        $task->score * 0.2
-                    ),
-                ]);
+            } else {
+                // Incorrect submission - check if user can retry
+                $maxSubmissions = $task->max_submission ?? 3;
+                $remainingSubmissions = $maxSubmissions - $currentSubmissionCount;
 
-                $attempt->appendNote(sprintf(
-                    'Task has been locked. Next attempt would have a maximum possible score of %.2f points, which is below the 20%% threshold (%.2f points).',
-                    $result['next_attempt_max_score'],
-                    $task->score * 0.2
-                ));
+                if ($remainingSubmissions > 0) {
+                    // User can retry - keep attempt status as RUNNING
+                    $canRetry = true;
+                    $attempt->update([
+                        'score' => $result['score'],
+                    ]);
+                    $attempt->appendNote(sprintf(
+                        'Incorrect submission. You have %d submission(s) remaining for this attempt.',
+                        $remainingSubmissions
+                    ));
+                } else {
+                    // Max submissions reached - check if should lock or allow new attempt
+                    $attempt->update([
+                        'status' => AttemptTaskStatus::ATTEMPTED_FAILED,
+                        'completed_at' => now(),
+                        'score' => $result['score'],
+                    ]);
+
+                    if ($result['should_lock']) {
+                        // Lock due to penalty threshold (too many failed attempts)
+                        TaskUserLock::create([
+                            'task_id' => $task->id,
+                            'user_id' => $user->id,
+                            'status' => TaskUserLockStatus::PENALTY,
+                            'reason' => sprintf(
+                                'Task locked: Next attempt\'s maximum possible score (%.2f points) would be below 20%% threshold (%.2f points required)',
+                                $result['next_attempt_max_score'],
+                                $task->score * 0.2
+                            ),
+                        ]);
+
+                        $attempt->appendNote(sprintf(
+                            'Maximum submissions reached. Task has been locked. Next attempt would have a maximum possible score of %.2f points, which is below the 20%% threshold (%.2f points).',
+                            $result['next_attempt_max_score'],
+                            $task->score * 0.2
+                        ));
+                    } else {
+                        $attempt->appendNote(sprintf(
+                            'Maximum submissions reached for this attempt. You can start a new attempt with a fresh workspace.'
+                        ));
+                    }
+                }
             }
 
             return response()->json([
@@ -502,11 +569,18 @@ class UserTaskController extends Controller
                 'result' => $result,
                 'locked' => $result['should_lock'] || $shouldLockDueToSuccess,
                 'locked_due_to_success' => $shouldLockDueToSuccess,
+                'can_retry' => $canRetry,
+                'remaining_submissions' => $canRetry ? ($task->max_submission ?? 3) - $currentSubmissionCount : 0,
+                'current_submission_count' => $currentSubmissionCount,
             ]);
         } elseif ($task->judge_type === 'AiJudge') {
             $judgeService = new AiJudgeService();
             $result = $judgeService->evaluate($task, $attempt, $answers);
 
+            // Increment submission count
+            $attempt->increment('submission_count');
+            $currentSubmissionCount = $attempt->submission_count;
+
             // Save the attempt answer
             UserTaskAttemptAnswer::create([
                 'user_task_attempt_id' => $attempt->id,
@@ -515,16 +589,10 @@ class UserTaskController extends Controller
                 'notes' => $this->formatResultNotes($result),
             ]);
 
-            // Update the attempt
-            $attempt->update([
-                'status' => AttemptTaskStatus::ATTEMPTED_FAILED,
-                'completed_at' => now(),
-                'score' => $result['score'],
-            ]);
-
             // Add note to attempt with scoring details
             $noteMessage = sprintf(
-                "Attempt #%d completed. Score: %.2f/%.2f (%.1f%%). Correct answers: %d/%d.",
+                "Submission #%d of attempt #%d. Score: %.2f/%.2f (%.1f%%). Correct answers: %d/%d.",
+                $currentSubmissionCount,
                 $result['attempt_number'],
                 $result['score'],
                 $result['max_score'],
@@ -537,6 +605,7 @@ class UserTaskController extends Controller
             // Check if all answers are correct (100% success)
             $allCorrect = $result['correct_count'] === $result['total_count'];
             $shouldLockDueToSuccess = false;
+            $canRetry = false;
 
             if ($allCorrect) {
                 // Lock the task immediately when user gets 100% correct
@@ -548,10 +617,11 @@ class UserTaskController extends Controller
                     ],
                     [
                         'reason' => sprintf(
-                            'Task completed successfully with all answers correct (%d/%d) on attempt #%d. Score: %.2f/%.2f points.',
+                            'Task completed successfully with all answers correct (%d/%d) on attempt #%d, submission #%d. Score: %.2f/%.2f points.',
                             $result['correct_count'],
                             $result['total_count'],
                             $result['attempt_number'],
+                            $currentSubmissionCount,
                             $result['score'],
                             $result['max_score']
                         ),
@@ -560,6 +630,8 @@ class UserTaskController extends Controller
 
                 $attempt->update([
                     'status' => AttemptTaskStatus::COMPLETED,
+                    'completed_at' => now(),
+                    'score' => $result['score'],
                 ]);
 
                 $attempt->appendNote(sprintf(
@@ -569,24 +641,53 @@ class UserTaskController extends Controller
                 ));
 
                 $shouldLockDueToSuccess = true;
-            } elseif ($result['should_lock']) {
-                // Lock due to penalty threshold (too many failed attempts)
-                TaskUserLock::create([
-                    'task_id' => $task->id,
-                    'user_id' => $user->id,
-                    'status' => TaskUserLockStatus::PENALTY,
-                    'reason' => sprintf(
-                        'Task locked: Next attempt\'s maximum possible score (%.2f points) would be below 20%% threshold (%.2f points required)',
-                        $result['next_attempt_max_score'],
-                        $task->score * 0.2
-                    ),
-                ]);
+            } else {
+                // Incorrect submission - check if user can retry
+                $maxSubmissions = $task->max_submission ?? 3;
+                $remainingSubmissions = $maxSubmissions - $currentSubmissionCount;
 
-                $attempt->appendNote(sprintf(
-                    'Task has been locked. Next attempt would have a maximum possible score of %.2f points, which is below the 20%% threshold (%.2f points).',
-                    $result['next_attempt_max_score'],
-                    $task->score * 0.2
-                ));
+                if ($remainingSubmissions > 0) {
+                    // User can retry - keep attempt status as RUNNING
+                    $canRetry = true;
+                    $attempt->update([
+                        'score' => $result['score'],
+                    ]);
+                    $attempt->appendNote(sprintf(
+                        'Incorrect submission. You have %d submission(s) remaining for this attempt.',
+                        $remainingSubmissions
+                    ));
+                } else {
+                    // Max submissions reached - check if should lock or allow new attempt
+                    $attempt->update([
+                        'status' => AttemptTaskStatus::ATTEMPTED_FAILED,
+                        'completed_at' => now(),
+                        'score' => $result['score'],
+                    ]);
+
+                    if ($result['should_lock']) {
+                        // Lock due to penalty threshold (too many failed attempts)
+                        TaskUserLock::create([
+                            'task_id' => $task->id,
+                            'user_id' => $user->id,
+                            'status' => TaskUserLockStatus::PENALTY,
+                            'reason' => sprintf(
+                                'Task locked: Next attempt\'s maximum possible score (%.2f points) would be below 20%% threshold (%.2f points required)',
+                                $result['next_attempt_max_score'],
+                                $task->score * 0.2
+                            ),
+                        ]);
+
+                        $attempt->appendNote(sprintf(
+                            'Maximum submissions reached. Task has been locked. Next attempt would have a maximum possible score of %.2f points, which is below the 20%% threshold (%.2f points).',
+                            $result['next_attempt_max_score'],
+                            $task->score * 0.2
+                        ));
+                    } else {
+                        $attempt->appendNote(sprintf(
+                            'Maximum submissions reached for this attempt. You can start a new attempt with a fresh workspace.'
+                        ));
+                    }
+                }
             }
 
             return response()->json([
@@ -594,6 +695,9 @@ class UserTaskController extends Controller
                 'result' => $result,
                 'locked' => $result['should_lock'] || $shouldLockDueToSuccess,
                 'locked_due_to_success' => $shouldLockDueToSuccess,
+                'can_retry' => $canRetry,
+                'remaining_submissions' => $canRetry ? ($task->max_submission ?? 3) - $currentSubmissionCount : 0,
+                'current_submission_count' => $currentSubmissionCount,
             ]);
         }
 

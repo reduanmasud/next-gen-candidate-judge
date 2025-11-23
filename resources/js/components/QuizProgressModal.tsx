@@ -20,6 +20,8 @@ interface SubmissionResult {
     should_lock: boolean;
     next_attempt_max_score: number;
     attempt_number: number;
+    can_retry?: boolean;
+    remaining_submissions?: number;
 }
 
 interface QuizProgressModalProps {
@@ -198,14 +200,34 @@ export default function QuizProgressModal({ open, result, taskScore }: QuizProgr
                                 )}
                             </div>
 
-                            {/* Return Button */}
-                            <Button 
-                                onClick={handleReturnToTasks} 
-                                className="w-full"
-                                size="lg"
-                            >
-                                Return to Tasks
-                            </Button>
+                            {/* Action Buttons */}
+                            {result.can_retry ? (
+                                <div className="flex gap-3">
+                                    <Button
+                                        onClick={handleReturnToTasks}
+                                        variant="outline"
+                                        className="flex-1"
+                                        size="lg"
+                                    >
+                                        Return to Tasks
+                                    </Button>
+                                    <Button
+                                        onClick={() => window.location.reload()}
+                                        className="flex-1"
+                                        size="lg"
+                                    >
+                                        Try Again ({result.remaining_submissions} remaining)
+                                    </Button>
+                                </div>
+                            ) : (
+                                <Button
+                                    onClick={handleReturnToTasks}
+                                    className="w-full"
+                                    size="lg"
+                                >
+                                    Return to Tasks
+                                </Button>
+                            )}
                         </>
                     )}
                 </div>

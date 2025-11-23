@@ -48,6 +48,7 @@ interface Task {
     timer?: number;
     warrning_timer?: number;
     warning_timer_sound?: boolean;
+    max_submission?: number;
     user?: {
         name: string;
     };

@@ -29,6 +29,7 @@ class UserTaskAttempt extends Model implements TracksProgressInterface
         'started_at',
         'completed_at',
         'score',
+        'submission_count',
         'notes',
         'metadata',
     ];
