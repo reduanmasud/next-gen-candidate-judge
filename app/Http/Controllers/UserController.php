@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Task;
 use App\Models\User;
 use App\Models\UserTaskAttempt;
 use Illuminate\Http\RedirectResponse;
@@ -160,6 +161,27 @@ class UserController extends Controller
             }
         }
 
+        // Group attempts by task and calculate aggregated data
+        $taskAttemptsSummary = $user->attempts
+            ->groupBy('task_id')
+            ->map(function ($attempts) {
+                $task = $attempts->first()->task;
+                $totalSubmissions = $attempts->sum('submission_count');
+
+                return [
+                    'task_id' => $task->id,
+                    'task_title' => $task->title,
+                    'task_score' => $task->score,
+                    'attempt_count' => $attempts->count(),
+                    'total_submissions' => $totalSubmissions,
+                    'best_score' => $attempts->max('score'),
+                    'latest_attempt_date' => $attempts->first()->started_at,
+                ];
+            })
+            ->values()
+            ->sortByDesc('latest_attempt_date')
+            ->values();
+
         return Inertia::render('users/show', [
             'user' => [
                 'id' => $user->id,
@@ -180,6 +202,64 @@ class UserController extends Controller
                 'total_answers' => $totalAnswers,
                 'locked_tasks_count' => $user->taskLocks->count(),
             ],
+            'taskAttemptsSummary' => $taskAttemptsSummary,
+        ]);
+    }
+
+    /**
+     * Display detailed task attempts for a specific task by a user.
+     */
+    public function showTaskAttempts(User $user, Task $task): Response
+    {
+        // Load all attempts for this user and task with submissions
+        $attempts = UserTaskAttempt::where('user_id', $user->id)
+            ->where('task_id', $task->id)
+            ->with(['answers' => function ($query) {
+                $query->orderBy('created_at', 'asc');
+            }])
+            ->orderBy('started_at', 'desc')
+            ->get();
+
+        // Format attempts with detailed submission data
+        $formattedAttempts = $attempts->map(function ($attempt) {
+            $duration = null;
+            if ($attempt->started_at && $attempt->completed_at) {
+                $duration = $attempt->started_at->diffInSeconds($attempt->completed_at);
+            }
+
+            $submissions = $attempt->answers->map(function ($answer) {
+                return [
+                    'id' => $answer->id,
+                    'score' => $answer->score,
+                    'notes' => $answer->notes,
+                    'answers' => $answer->answers,
+                    'submitted_at' => $answer->created_at,
+                ];
+            });
+
+            return [
+                'id' => $attempt->id,
+                'status' => $attempt->status,
+                'score' => $attempt->score,
+                'started_at' => $attempt->started_at,
+                'completed_at' => $attempt->completed_at,
+                'duration_seconds' => $duration,
+                'submission_count' => $attempt->submission_count,
+                'submissions' => $submissions,
+            ];
+        });
+
+        return Inertia::render('users/task-attempts', [
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+            ],
+            'task' => [
+                'id' => $task->id,
+                'title' => $task->title,
+                'score' => $task->score,
+            ],
+            'attempts' => $formattedAttempts,
         ]);
     }
 

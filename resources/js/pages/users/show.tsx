@@ -44,6 +44,16 @@ interface TaskLock {
     };
 }
 
+interface TaskAttemptSummary {
+    task_id: number;
+    task_title: string;
+    task_score: number;
+    attempt_count: number;
+    total_submissions: number;
+    best_score: number;
+    latest_attempt_date: string;
+}
+
 interface UserShowProps {
     user: {
         id: number;
@@ -64,6 +74,7 @@ interface UserShowProps {
         total_answers: number;
         locked_tasks_count: number;
     };
+    taskAttemptsSummary: TaskAttemptSummary[];
 }
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -77,7 +88,7 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
-export default function UserShow({ user, stats }: UserShowProps) {
+export default function UserShow({ user, stats, taskAttemptsSummary }: UserShowProps) {
     const formatDate = (dateString: string) => {
         return new Date(dateString).toLocaleString();
     };
@@ -247,6 +258,58 @@ export default function UserShow({ user, stats }: UserShowProps) {
                         </CardContent>
                     </Card>
                 </div>
+
+                {/* Task Attempts Summary */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Tasks Attempted</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        {taskAttemptsSummary.length === 0 ? (
+                            <p className="text-center text-sm text-muted-foreground py-8">
+                                No tasks attempted yet.
+                            </p>
+                        ) : (
+                            <div className="space-y-3">
+                                {taskAttemptsSummary.map((taskSummary) => (
+                                    <Link
+                                        key={taskSummary.task_id}
+                                        href={`/users/${user.id}/tasks/${taskSummary.task_id}/attempts`}
+                                        className="block rounded-lg border p-4 hover:bg-accent transition-colors"
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex-1">
+                                                <h3 className="font-medium text-lg">
+                                                    {taskSummary.task_title}
+                                                </h3>
+                                                <div className="flex gap-4 mt-2 text-sm text-muted-foreground">
+                                                    <div className="flex items-center gap-1">
+                                                        <Target className="h-4 w-4" />
+                                                        <span>{taskSummary.attempt_count} attempt{taskSummary.attempt_count !== 1 ? 's' : ''}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1">
+                                                        <CheckCircle2 className="h-4 w-4" />
+                                                        <span>{taskSummary.total_submissions} submission{taskSummary.total_submissions !== 1 ? 's' : ''}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1">
+                                                        <Trophy className="h-4 w-4" />
+                                                        <span>Best: {taskSummary.best_score} / {taskSummary.task_score}</span>
+                                                    </div>
+                                                </div>
+                                                <p className="text-xs text-muted-foreground mt-1">
+                                                    Last attempted: {formatDate(taskSummary.latest_attempt_date)}
+                                                </p>
+                                            </div>
+                                            <div className="ml-4">
+                                                <ArrowLeft className="h-5 w-5 rotate-180 text-muted-foreground" />
+                                            </div>
+                                        </div>
+                                    </Link>
+                                ))}
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
 
                 {/* Attempt Timeline */}
                 <Card>
